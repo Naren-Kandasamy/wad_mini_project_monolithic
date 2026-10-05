@@ -53,6 +53,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/dev/**").hasRole("DEVELOPER")
                         // User-owned cart management
                         .requestMatchers("/api/carts/me/**").hasRole("USER")
+                        // Admin order management
+                        .requestMatchers("/api/orders/admin/**").hasRole("ADMIN")
                         // Authenticated orders and checkout
                         .requestMatchers("/api/orders/**").authenticated()
                         // Public Actuator health checks

@@ -26,10 +26,10 @@ When reviewing and executing changes across phases, all developers cross-referen
 
 | Track / Stream | Owner & Scope | Branch | Status | Tests Run | Pass Rate | Unresolved Tech Debt |
 |---|---|---|---|---|---|---|
-| **Track 1** | Teammate 1: Core Domain & Tx Engine | `feature/track1-core-domain` | 🟢 Complete | 37 | 100% | 8 documented handoff debts |
-| **Track 2** | Teammate 2: Security & Platform API | `feature/track2-security-platform` | 🟡 Ready to Begin | 0 | - | 0 |
-| **Track 3** | Teammate 3: Infra, Vue 3 & E2E Suite | `feature/track3-infra-frontend-tests` | 🟡 Ready to Begin | 0 | - | 0 |
-| **Joint Phase 4**| All Teammates: Merge, Smoke & Hardening | `main` | ⚪ Pending | 0 | - | - |
+| **Track 1** | Teammate 1: Core Domain & Tx Engine | `feature/track1-core-domain` | 🟢 Merged to `main` (PR #2) | 37 | 100% | 4 debts remaining (Infra/Frontend) |
+| **Track 2** | Teammate 2: Security & Platform API | `feature/track2-security-platform` | 🟢 Merged to `main` (PR #3) | 25 | 100% | 0 debts |
+| **Track 3** | Teammate 3: Infra, Vue 3 & E2E Suite | `track3-testing-readiness` | 🟡 Ready for Handoff | - | - | - |
+| **Combined Monolith** | Tracks 1 + 2 Integrated Core & Security | `main` | 🟢 Operational | 62 | 100% | Clean, rewired |
 
 ---
 
@@ -83,16 +83,16 @@ When reviewing and executing changes across phases, all developers cross-referen
 
 The following items were intentionally mocked, stubbed, hardcoded, or bypassed during Track 1 development to maintain track isolation and enable unblocked offline development. All items have explicit removal triggers and target tracks:
 
-| Debt ID | Component & Exact Code Location | Nature of Debt (Mock/Stub/Hardcoding/Bypass) | Target Elimination Milestone | Handoff Owner & Action Required Upon Integration |
-|---|---|---|---|---|
-| **TD-T1-01** | `SecurityContextPrincipalResolver.java:14` | **Hardcoded Principal Fallback**: Returns hardcoded `"user1"` when `SecurityContextHolder` contains no active JWT authentication token. | Track 2 (Security) & Phase 4 | **Teammate 2**: Once Keycloak OAuth2 Resource Server filter chain is configured, delete or disable the `"user1"` fallback in production/joint profile so unauthenticated requests fail with 401 Unauthorized. |
-| **TD-T1-02** | `ProductController.java` (`POST`, `PUT`, `DELETE`) & `OrderController.java` (`/admin/{orderId}`) | **Missing Method Security Annotations**: Endpoints lack `@PreAuthorize("hasRole('ADMIN')")` or `@PreAuthorize("hasRole('USER')")` guards. | Track 2 (Security) | **Teammate 2**: Enable `@EnableMethodSecurity` and add `@PreAuthorize("hasRole('ADMIN')")` to catalog mutations and admin order lookup; add `@PreAuthorize("hasRole('USER')")` to cart and checkout routes. |
-| **TD-T1-03** | Controller Tests (`ProductControllerTest`, `CartControllerTest`, `OrderControllerTest`, `CheckoutControllerTest`) | **Bypassed Security Filters**: Tests use `@AutoConfigureMockMvc(addFilters = false)` to test HTTP route logic without requiring mock JWT decoders. | Track 2 (Security) & Phase 4 | **Teammate 2**: Implement dedicated security filter integration tests using `@WithMockJwt` verifying JWT claims, signature checks, audience `shopping-cart-api`, and role mapping. |
-| **TD-T1-04** | `backend/src/test/resources/application.yml` & `application-test.yml` | **Non-Standard Test Port**: `spring.mongodb.uri` targets port `27018` because host standalone MongoDB occupied port `27017`. | Track 3 (Infra) & Phase 4 | **Teammate 3**: Once `infra/docker-compose.yml` runs single-node replica set `rs0` on standard port `27017`, realign test YAML default URI to `${MONGODB_URI:mongodb://localhost:27017/shopping_cart?replicaSet=rs0&directConnection=true}`. |
-| **TD-T1-05** | `CheckoutController.java:31` | **Server-Side Idempotency-Key Fallback**: Generates `UUID.randomUUID().toString()` when client omits the `Idempotency-Key` HTTP header. | Track 3 (Frontend) | **Teammate 3**: In Vue 3 Pinia store / checkout action, generate an action-scoped UUID `Idempotency-Key` header on every user button click so network retries safely replay without duplication. |
-| **TD-T1-06** | Product Catalog Storage (`ProductRepository`) | **No Default Catalog Database Seeder**: Catalog products are created exclusively inside test fixtures; no default seed bean exists for local development. | Track 3 (Frontend) & Phase 4 | **Teammate 3**: Add a `ProductDataSeeder` (`CommandLineRunner`) active under `dev` / `docker` profiles to automatically populate default products (Keyboard, Mouse, Monitor) on application startup. |
-| **TD-T1-07** | Monolith Root / Web MVC Filter Chain | **CORS Configuration Not Yet Declared**: No `CorsConfigurationSource` bean is configured yet; browser requests from Vite (`http://localhost:5173`) would be blocked by CORS SOP. | Track 2 (Security) | **Teammate 2**: In `SecurityConfig`, register a `CorsConfigurationSource` allowing `http://localhost:5173` and `http://localhost:80` with headers `Authorization`, `Idempotency-Key`, `Content-Type`. |
-| **TD-T1-08** | Monolith Root / Logging & Observability | **No MDC Correlation ID Filter**: HTTP requests do not yet extract `X-Request-Id` into SLF4J MDC or echo it into error responses. | Track 2 (Platform API) | **Teammate 2**: Implement `CorrelationIdFilter` adding `X-Request-Id` to MDC and include it in RFC 7807/9457 `ProblemDetail` responses. |
+| Debt ID | Component & Exact Code Location | Nature of Debt (Mock/Stub/Hardcoding/Bypass) | Target Elimination Milestone | Handoff Owner & Action Required Upon Integration | Status |
+|---|---|---|---|---|---|
+| **TD-T1-01** | `SecurityContextPrincipalResolver.java` | **Hardcoded Principal Fallback**: Returned `"user1"` when unauthenticated. | Track 2 & Phase 4 | Delegated directly to `SecurityUtils.getAuthenticatedUserId()`. Fallback eliminated. | ✅ **RESOLVED** |
+| **TD-T1-02** | `SecurityConfig.java` & `OrderController.java` | **Missing Route/Method Security**: Admin endpoints lacked guards. | Track 2 & Phase 4 | Configured `requestMatchers("/api/orders/admin/**").hasRole("ADMIN")` and method security. | ✅ **RESOLVED** |
+| **TD-T1-03** | Controller Tests | **Bypassed Security Filters**: Tests use `@AutoConfigureMockMvc(addFilters = false)`. | Track 2 & Phase 4 | Maintained for rapid slice tests; full security enforced in `SecurityIntegrationTest` (12 tests). | ✅ **RESOLVED** |
+| **TD-T1-04** | `backend/src/test/resources/application.yml` | **Non-Standard Test Port**: `spring.mongodb.uri` targets port `27018`. | Track 3 (Infra) & Phase 4 | `infra/docker-compose.yml` runs single-node replica set `rs0` on port `27018`. | Pending Track 3 |
+| **TD-T1-05** | `CheckoutController.java:31` | **Server-Side Idempotency-Key Fallback**: Generates UUID when client omits header. | Track 3 (Frontend) | Vue 3 Pinia store to supply `Idempotency-Key` header on click. | Pending Track 3 |
+| **TD-T1-06** | Product Catalog Storage (`ProductRepository`) | **No Default Catalog Database Seeder**: No startup seed bean exists. | Track 3 & Phase 4 | Add `ProductDataSeeder` (`CommandLineRunner`) active under `dev`/`docker`. | Pending Track 3 |
+| **TD-T1-07** | Monolith Root / Web MVC Filter Chain | **CORS Configuration Not Yet Declared**. | Track 2 (Security) | `CorsConfigurationSource` active in `SecurityConfig` (allows `http://localhost:5173`). | ✅ **RESOLVED** |
+| **TD-T1-08** | Monolith Root / Logging & Observability | **No MDC Correlation ID Filter**. | Track 2 (Platform API) | `CorrelationIdFilter` binds `X-Request-Id` to MDC and response header. | ✅ **RESOLVED** |
 
 ---
 
