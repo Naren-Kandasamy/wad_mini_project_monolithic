@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Structured logging configuration for the Shopping Cart Monolith.
+
+  In production / docker profiles a JSON-style pattern includes the
+  Correlation ID (X-Request-Id) injected by CorrelationIdFilter into SLF4J MDC.
+
+  Log fields per line:
+    timestamp | level | requestId | thread | logger (abbreviated) | message
+-->
+<configuration>
+
+    <!-- ── Console appender (all profiles) ─────────────────────────────────── -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%5level] [%X{requestId:-no-request-id}] [%t] %-40.40logger{39} : %msg%n</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- ── Root logger ───────────────────────────────────────────────────────
+         Default level is INFO; override via LOG_LEVEL environment variable
+         or spring.logging.level.* application properties.
+    ─────────────────────────────────────────────────────────────────────────── -->
+    <root level="${LOG_LEVEL:-INFO}">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+
+    <!-- ── Quieten noisy framework loggers ──────────────────────────────────── -->
+    <logger name="org.springframework.security" level="WARN"/>
+    <logger name="org.springframework.data.mongodb" level="WARN"/>
+    <logger name="org.mongodb.driver" level="WARN"/>
+    <logger name="org.testcontainers" level="WARN"/>
+
+    <!-- ── Application loggers — default INFO, verbose in dev ─────────────── -->
+    <springProfile name="dev">
+        <logger name="com.example.shoppingcart" level="DEBUG"/>
+    </springProfile>
+
+</configuration>
