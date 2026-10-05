@@ -2,7 +2,7 @@
 ## Verification, Observability, Deployment, Reliability & Operational Architecture
 
 **Project:** Shopping Cart Full-Stack Web Application  
-**Stack:** Vue.js + Spring Boot + MongoDB + Keycloak  
+**Stack:** Vue.js + Spring Boot 4.1.1 (Java 21) + MongoDB + Keycloak  
 **Architecture:** Modular Monolith  
 **Status:** CANDIDATE — PENDING INDEPENDENT CLAUDE REVIEW  
 **Implementation constraint:** Approximately 2 hours for the academic implementation
@@ -51,7 +51,7 @@ The central principle is:
 
 # 2. Final Runtime Architecture
 
-The production-minded baseline is one Spring Boot application.
+The production-minded baseline is one Spring Boot 4.1.1 application on Java 21.
 
 ```text
                            ┌──────────────────────┐

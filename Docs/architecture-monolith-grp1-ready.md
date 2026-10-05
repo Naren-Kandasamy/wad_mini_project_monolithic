@@ -2,7 +2,7 @@
 ## Monolithic Architecture — Core Architecture
 
 **Status:** CLAUDE REVIEWED — MINOR CHANGES APPLIED  
-**Stack:** Vue.js + Spring Boot + MongoDB + Keycloak  
+**Stack:** Vue.js + Spring Boot 4.1.1 (Java 21) + MongoDB + Keycloak  
 **Architecture:** Modular Monolith  
 **Primary communication:** HTTP from Vue to one Spring Boot application; in-process typed module APIs inside the backend  
 **Implementation constraint:** Approximately 2 hours  
@@ -887,7 +887,7 @@ Potential future capabilities such as price revalidation, inventory coordination
 
 | Concern | Monolithic decision |
 |---|---|
-| Backend deployment | One Spring Boot application |
+| Backend deployment | One Spring Boot application (Spring Boot 4.1.1, Java 21) |
 | Domain structure | Product, Cart, Order, Checkout modules |
 | Module interaction | Typed in-process APIs |
 | API Gateway | Removed |

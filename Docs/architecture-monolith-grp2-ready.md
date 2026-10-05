@@ -2,7 +2,7 @@
 ## OAuth/OIDC, RBAC, JWT, Resource Ownership & Security for the Modular Monolith
 
 **Project:** Shopping Cart Full-Stack Web Application  
-**Stack:** Vue.js + Spring Boot + MongoDB + Keycloak  
+**Stack:** Vue.js + Spring Boot 4.1.1 (Java 21) + MongoDB + Keycloak  
 **Architecture:** Modular Monolith  
 **Status:** RESEARCH-INFORMED — PENDING INDEPENDENT CLAUDE REVIEW  
 **Implementation constraint:** Approximately 2 hours

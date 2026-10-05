@@ -2,7 +2,7 @@
 ## Monolithic Architecture — Master Architecture
 
 **Project:** Shopping Cart Full-Stack Web Application  
-**Stack:** Vue.js + Spring Boot + MongoDB + Keycloak  
+**Stack:** Vue.js + Spring Boot 4.1.1 (Java 21) + MongoDB + Keycloak  
 **Architecture:** Modular Monolith  
 **Status:** CONSOLIDATED FROM CLAUDE-REVIEWED GROUPS 1–3 — READY  
 **Implementation constraint:** Approximately 2 hours for the academic implementation
@@ -2268,7 +2268,7 @@ The goal is maximum protection of the highest-risk behaviors.
 | Concern | Final Monolithic Decision |
 |---|---|
 | Frontend | Vue SPA |
-| Backend | One Spring Boot application |
+| Backend | One Spring Boot application (Spring Boot 4.1.1, Java 21) |
 | Architecture style | Modular monolith |
 | Modules | Security, Product, Cart, Order, Checkout |
 | Module communication | Typed in-process APIs |

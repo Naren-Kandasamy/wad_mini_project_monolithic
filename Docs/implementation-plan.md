@@ -1,5 +1,13 @@
 # Master Implementation Plan Template & Architecture Reference
 
+## Standardized Technology Stack & Target Baseline
+- **Backend Framework:** Spring Boot 4.1.1
+- **Language / Runtime:** Java 21 (LTS)
+- **Frontend:** Vue.js 3 SPA (Vite, Pinia, Vue Router)
+- **Database:** MongoDB 7.x (Single-node replica set `rs0` for multi-document transaction support)
+- **Identity Provider:** Keycloak 24+ (OIDC, Authorization Code with PKCE, realm: `shopping-cart`, audience: `shopping-cart-api`)
+- **Testing Tools:** JUnit 5, Mockito, MockMvc, ArchUnit, Playwright E2E
+
 ## Documents Referred & Contextual Blueprint
 Before executing any implementation phase, developers must refer to the following authoritative documents located in `Docs/`:
 
