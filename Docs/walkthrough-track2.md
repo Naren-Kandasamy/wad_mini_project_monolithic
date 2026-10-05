@@ -1,7 +1,7 @@
 # Track 2 Implementation Walkthrough
 
 **Branch:** `feature/track2-security-platform`
-**Stack:** Spring Boot 3.3.4 · Java 21 · Keycloak 24+
+**Stack:** Spring Boot 4.1.1 · Java 21 LTS · Keycloak 24+
 **Scope reference:** `Docs/architecture-monolith-grp2-ready.md`
 **Final test result:** 25 / 25 tests passing — 0 failures — BUILD SUCCESS
 
@@ -51,18 +51,20 @@ with `--import-realm` to provision the entire realm without manual UI steps.
 
 ### `backend/pom.xml`
 
-Spring Boot 3.3.4 Maven project (Java 21).
+Spring Boot 4.1.1 Maven project (Java 21 LTS). Standardized across Track 1, Track 2, and `main`.
 
 Key dependencies:
 
 | Dependency | Purpose |
 |---|---|
-| `spring-boot-starter-web` | REST API / Spring MVC |
-| `spring-boot-starter-security` | Spring Security |
-| `spring-boot-starter-oauth2-resource-server` | JWT validation, Bearer token support |
+| `spring-boot-starter-webmvc` | REST API / Spring MVC (Spring Boot 4 modular starter) |
+| `spring-boot-starter-security` | Spring Security 7 |
+| `spring-boot-starter-security-oauth2-resource-server` | JWT validation, Bearer token support |
 | `spring-boot-starter-validation` | Bean Validation (JSR-380) |
 | `spring-boot-starter-actuator` | `/actuator/health` liveness/readiness |
-| `spring-security-test` (test) | `jwt()` MockMvc post-processor |
+| `spring-boot-starter-webmvc-test` (test) | Spring MVC MockMvc testing |
+| `spring-boot-starter-security-test` (test) | `jwt()` MockMvc post-processor |
+| `spring-boot-starter-security-oauth2-resource-server-test` (test) | OAuth2 resource server test support |
 
 ---
 
@@ -395,3 +397,27 @@ All failures encountered during the TDD loop, with the exact fix applied.
 | **Symptom** | `Docs/walkthrough-track2.md` showed 0 bytes after first write attempt. |
 | **Root cause** | The artifact-path write tool used `ArtifactMetadata` pointing outside the artifact directory; the tool rejected the write silently. The git commit captured the empty file. |
 | **Fix** | Rewrote using Python `open()` via shell, which writes directly to the project path without artifact-directory restrictions. SecurityIntegrationTest was also re-verified: `mvn clean test` showed 25 / 25 passing before this documentation was committed. |
+
+---
+
+### Incident 6 — Handoff diagnostic, test failure resolution & Spring Boot 4.1.1 alignment
+
+| Field | Detail |
+|---|---|
+| **Phase** | Handoff stabilization & Spring Boot 4.1.1 standardization |
+| **Symptom** | 6 tests in `SecurityIntegrationTest` failed with `Status expected:<200|404> but was:<500>` after teammate commit `0f5e79f`. |
+| **Root cause** | In commit `0f5e79f`, `@Import(...)` was removed from `SecurityIntegrationTest`, leaving dummy controllers unregistered in Spring's application context. Spring MVC dispatched requests to `ResourceHttpRequestHandler`, throwing `NoResourceFoundException`. Because teammate also removed the `NoResourceFoundException` handler from `GlobalExceptionHandler`, the exception cascaded into `handleGeneralException(Exception.class)` returning 500. Additionally, test #12 was removed and Spring Boot version was 3.3.4 (diverging from Track 1 and `main` on 4.1.1). |
+| **Fix applied** | 1. Re-added `@Import` with all 4 dummy controllers to `SecurityIntegrationTest`.<br>2. Restored `NoResourceFoundException` handler in `GlobalExceptionHandler` returning 404 `ProblemDetail`.<br>3. Restored test #12 (`unauthenticatedRequestReturnsProblemDetailBody`) asserting 401 with `application/problem+json`.<br>4. Upgraded `backend/pom.xml` to Spring Boot `4.1.1` on Java 21 LTS with modular starters (`spring-boot-starter-webmvc`, `spring-boot-starter-security-oauth2-resource-server`, `spring-boot-starter-webmvc-test`).<br>5. Migrated `@MockBean` to Spring Boot 4 `@MockitoBean` and aligned test autoconfiguration imports.<br>6. Executed `mvn clean test` — 25 / 25 tests pass with 0 failures in 16.4s. |
+
+---
+
+## Joint Phase 4 Handoff Contracts
+
+| Contract Area | Specification | Consumer Modules |
+|---|---|---|
+| **Caller Identity** | `SecurityUtils.getAuthenticatedUserId()` retrieves verified `Jwt.sub`. Never accept `userId` from request body, query params, or client headers (`X-User-Id` is rejected). | Cart, Order, Checkout |
+| **Role Verification** | `SecurityUtils.hasRole("ADMIN")`, `SecurityUtils.hasRole("USER")`, `SecurityUtils.hasRole("DEVELOPER")`. | Product, Admin, Cart |
+| **Error Handling** | RFC 7807 `ProblemDetail` via `GlobalExceptionHandler` covering 400 (`MethodArgumentNotValidException`), 401 (`AuthenticationException`), 403 (`AccessDeniedException`), 404 (`ResourceNotFoundException`, `NoResourceFoundException`), 409 (`ConflictException`), and 500 (`Exception`). | Monolith-wide |
+| **Distributed Tracing** | `CorrelationIdFilter` binds `X-Request-Id` to SLF4J MDC `requestId` and response header. | Monolith-wide, Frontend |
+| **Keycloak Config** | Public client `shopping-cart-spa` (PKCE `S256`), audience `shopping-cart-api`, realm `shopping-cart`. Seed users `user1`, `admin1`, `dev1`. | Track 3 Frontend, Keycloak Docker |
+

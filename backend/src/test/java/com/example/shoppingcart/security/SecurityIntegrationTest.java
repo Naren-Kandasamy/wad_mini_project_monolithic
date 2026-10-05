@@ -4,15 +4,17 @@ import com.example.shoppingcart.shared.error.ResourceNotFoundException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.*;
 
@@ -26,12 +28,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest(properties = {"spring.main.allow-bean-definition-overriding=true"})
 @AutoConfigureMockMvc
+@Import({
+        SecurityIntegrationTest.DummyProductController.class,
+        SecurityIntegrationTest.DummyCartController.class,
+        SecurityIntegrationTest.DummyOrderController.class,
+        SecurityIntegrationTest.DummyAdminController.class
+})
 class SecurityIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
 
-    @org.springframework.boot.test.mock.mockito.MockBean
+    @MockitoBean
     private JwtDecoder jwtDecoder;
 
     @TestConfiguration
@@ -189,5 +197,13 @@ class SecurityIntegrationTest {
                         .header("Access-Control-Request-Method", "POST"))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:5173"));
+    }
+
+    @Test
+    @DisplayName("Unauthenticated request to protected /api/orders returns RFC 7807 Unauthorized body")
+    void unauthenticatedRequestReturnsProblemDetailBody() throws Exception {
+        mockMvc.perform(get("/api/orders/some-id"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("Content-Type", org.hamcrest.Matchers.containsString("application/problem+json")));
     }
 }
