@@ -1,0 +1,64 @@
+version: '3.8'
+# Local development environment for Shopping Cart Monolith.
+#
+# Port notes:
+#   MongoDB is exposed on 27018 (not the default 27017) to avoid collisions with
+#   any local standalone mongod the developer may have running.
+#   This matches the application-test.yml URI: mongodb://localhost:27018/...
+#
+# Usage:
+#   docker compose -f infra/docker-compose.yml up -d
+#   docker compose -f infra/docker-compose.yml down -v
+
+services:
+
+  # ── MongoDB 7.0 single-node replica set (required for multi-document transactions) ──
+  mongodb:
+    image: mongo:7.0
+    container_name: shopping-cart-mongo
+    ports:
+      - "27018:27018"
+    command:
+      - "--replSet"
+      - "rs0"
+      - "--bind_ip_all"
+      - "--port"
+      - "27018"
+    healthcheck:
+      test:
+        - "CMD"
+        - "mongosh"
+        - "--port"
+        - "27018"
+        - "--eval"
+        - >
+          try {
+            rs.status()
+          } catch (e) {
+            rs.initiate({_id:'rs0', members:[{_id:0, host:'localhost:27018'}]})
+          }
+      interval: 10s
+      timeout: 30s
+      retries: 5
+      start_period: 20s
+
+  # ── Keycloak 24 with shopping-cart realm auto-import ─────────────────────────
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0
+    container_name: shopping-cart-keycloak
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    command:
+      - start-dev
+      - --import-realm
+    volumes:
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+    ports:
+      - "8180:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health/ready"]
+      interval: 15s
+      timeout: 10s
+      retries: 6
+      start_period: 40s

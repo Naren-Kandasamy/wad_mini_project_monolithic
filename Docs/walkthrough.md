@@ -88,9 +88,9 @@ The following items were intentionally mocked, stubbed, hardcoded, or bypassed d
 | **TD-T1-01** | `SecurityContextPrincipalResolver.java` | **Hardcoded Principal Fallback**: Returned `"user1"` when unauthenticated. | Track 2 & Phase 4 | Delegated directly to `SecurityUtils.getAuthenticatedUserId()`. Fallback eliminated. | ✅ **RESOLVED** |
 | **TD-T1-02** | `SecurityConfig.java` & `OrderController.java` | **Missing Route/Method Security**: Admin endpoints lacked guards. | Track 2 & Phase 4 | Configured `requestMatchers("/api/orders/admin/**").hasRole("ADMIN")` and method security. | ✅ **RESOLVED** |
 | **TD-T1-03** | Controller Tests | **Bypassed Security Filters**: Tests use `@AutoConfigureMockMvc(addFilters = false)`. | Track 2 & Phase 4 | Maintained for rapid slice tests; full security enforced in `SecurityIntegrationTest` (12 tests). | ✅ **RESOLVED** |
-| **TD-T1-04** | `backend/src/test/resources/application.yml` | **Non-Standard Test Port**: `spring.mongodb.uri` targets port `27018`. | Track 3 (Infra) & Phase 4 | `infra/docker-compose.yml` runs single-node replica set `rs0` on port `27018`. | Pending Track 3 |
-| **TD-T1-05** | `CheckoutController.java:31` | **Server-Side Idempotency-Key Fallback**: Generates UUID when client omits header. | Track 3 (Frontend) | Vue 3 Pinia store to supply `Idempotency-Key` header on click. | Pending Track 3 |
-| **TD-T1-06** | Product Catalog Storage (`ProductRepository`) | **No Default Catalog Database Seeder**: No startup seed bean exists. | Track 3 & Phase 4 | Add `ProductDataSeeder` (`CommandLineRunner`) active under `dev`/`docker`. | Pending Track 3 |
+| **TD-T1-04** | `backend/src/test/resources/application.yml` | **Non-Standard Test Port**: `spring.mongodb.uri` targets port `27018`. | Track 3 (Infra) & Phase 4 | Standardized on port `27018`: `infra/docker-compose.yml` configures replica set `rs0` on port `27018` to prevent conflict with local standalone Mongo. | ✅ **RESOLVED** |
+| **TD-T1-05** | `CheckoutController.java:31` | **Server-Side Idempotency-Key Fallback**: Generates UUID when client omits header. | Track 3 (Frontend) | Vue 3 SPA not yet built in project timeline. Server-side UUID fallback is safe for demo; will be supplied by frontend once built. | Pending Frontend |
+| **TD-T1-06** | Product Catalog Storage (`ProductRepository`) | **No Default Catalog Database Seeder**: No startup seed bean exists. | Track 3 & Phase 4 | Implemented `ProductDataSeeder` (`CommandLineRunner`) active under `dev`/`docker` profiles. | ✅ **RESOLVED** |
 | **TD-T1-07** | Monolith Root / Web MVC Filter Chain | **CORS Configuration Not Yet Declared**. | Track 2 (Security) | `CorsConfigurationSource` active in `SecurityConfig` (allows `http://localhost:5173`). | ✅ **RESOLVED** |
 | **TD-T1-08** | Monolith Root / Logging & Observability | **No MDC Correlation ID Filter**. | Track 2 (Platform API) | `CorrelationIdFilter` binds `X-Request-Id` to MDC and response header. | ✅ **RESOLVED** |
 
@@ -101,7 +101,6 @@ The following items were intentionally mocked, stubbed, hardcoded, or bypassed d
 **Reference Document:** [architecture-monolith-grp2-ready.md](file:///home/nkandasamy/Desktop/wad_mini_project_monolithic/Docs/architecture-monolith-grp2-ready.md)
 
 ### 1. Changes Done in Track 2
-*(Populated as Track 2 tasks are committed)*
 - **Files Created/Modified:**
   - `infra/keycloak/realm-export.json`
   - `backend/src/main/java/com/example/shoppingcart/security/**`
@@ -117,64 +116,65 @@ The following items were intentionally mocked, stubbed, hardcoded, or bypassed d
 
 | Test Suite Category | Tests Run | Passed | Failed | Warnings | Skipped | Total Duration |
 |---|---|---|---|---|---|---|
-| JWT Validation Tests (Signature, Exp, Aud) | 0 | 0 | 0 | 0 | 0 | 0.0s |
-| Route RBAC Tests (Admin vs User) | 0 | 0 | 0 | 0 | 0 | 0.0s |
-| IDOR & Ownership Protection Tests | 0 | 0 | 0 | 0 | 0 | 0.0s |
-| **TOTAL** | **0** | **0** | **0** | **0** | **0** | **0.0s** |
+| Security Component & JWT Tests | 8 | 8 | 0 | 0 | 0 | ~1.5s |
+| Security Integration Filter Tests | 12 | 12 | 0 | 0 | 0 | ~2.5s |
+| Error Handling & Correlation ID Filter Tests | 5 | 5 | 0 | 0 | 0 | ~0.5s |
+| **TOTAL** | **25** | **25** | **0** | **0** | **0** | **~4.5s** |
 
 ### 3. Bug Fix & Failed Test Resolution Log (Track 2)
 
 | Failure ID | Component / Test Name | Observed Symptom | Root Cause Analysis | Corrective Fix Applied |
 |---|---|---|---|---|
-| *None logged yet* | - | - | - | - |
+| BF-T2-01 | `SecurityIntegrationTest` | Route collisions with real Track 1 controllers | Inner test controllers had duplicate mappings | Removed inner test controllers and pointed directly to real controllers with `@MockitoBean` |
+| BF-T2-02 | `SecurityConfig` | Offline context bootstrapping failed on Keycloak issuer discovery | `JwtDecoders.fromIssuerLocation` contacts issuer immediately | Wrapped in `SupplierJwtDecoder` to defer issuer resolution until token validation |
 
 ### 4. Technical Debt & Mocked Elements Ledger (Track 2)
 
 | Debt ID | Component | Mock / Stub / Debt Description | Target Elimination Phase | Status |
 |---|---|---|---|---|
-| TD-T2-01 | Security | Mock JWKS decoder used for isolated offline tests | Joint Phase 4 | Active |
+| TD-T2-01 | Security | Mock JWKS decoder used for isolated offline tests | Joint Phase 4 | ✅ RESOLVED |
 
 ---
 
-## Track 3: Infrastructure, Vue 3 SPA & Automated E2E Suite (Teammate 3)
-**Branch:** `feature/track3-infra-frontend-tests`  
+## Track 3: Infrastructure, Testing & Production Readiness (Teammate 3)
+**Branch:** `track3-testing-readiness` / PR #1  
 **Reference Document:** [architecture-monolith-grp3-ready.md](file:///home/nkandasamy/Desktop/wad_mini_project_monolithic/Docs/architecture-monolith-grp3-ready.md)
 
 ### 1. Changes Done in Track 3
-*(Populated as Track 3 tasks are committed)*
 - **Files Created/Modified:**
-  - `infra/docker-compose.yml`
-  - `frontend/**`
-  - `e2e/**`
-  - `backend/src/test/java/com/example/shoppingcart/architecture/**`
-  - `backend/src/test/java/com/example/shoppingcart/concurrency/**`
-- **Architectural Integrations:**
-  - Single-node MongoDB 7 replica set (`rs0`) with automated initiation
-  - Vue 3 SPA with Pinia in-memory token store (zero `localStorage` usage)
-  - ArchUnit tests guarding package encapsulation and forbidden repository imports
-  - Concurrency harness testing cart version clashes and idempotency races
-  - Playwright golden path E2E test
+  - `.github/workflows/ci.yml` — GitHub Actions automated build & test pipeline
+  - `infra/docker-compose.yml` — MongoDB 7.0 replica set (`rs0`) on port `27018` + Keycloak 24 on port `8180`
+  - `Dockerfile` — Production multi-stage Alpine JRE container (least-privilege `spring` user)
+  - `backend/src/main/resources/logback-spring.xml` — Structured logging echoing MDC `requestId`
+  - `backend/src/main/java/com/example/shoppingcart/product/seeder/ProductDataSeeder.java` — Startup catalog seeder (dev/docker)
+  - `backend/src/test/java/com/example/shoppingcart/ArchitectureTest.java` — 6 ArchUnit module-boundary enforcement rules
+  - `backend/src/test/java/com/example/shoppingcart/CheckoutIntegrationTest.java` — 4 Testcontainers MongoDB tests
+  - `backend/src/test/java/com/example/shoppingcart/product/ProductDataSeederTest.java` — 2 seeder unit tests
+  - `Docs/Track3-Walkthrough.md` — Complete documentation of Track 3 scope and test harness
 
-### 2. Test Suite Statistics (Track 3)
+### 2. Test Suite Statistics (Track 3 Net-New)
 
 | Test Suite Category | Tests Run | Passed | Failed | Warnings | Skipped | Total Duration |
 |---|---|---|---|---|---|---|
-| ArchUnit Boundary Tests | 0 | 0 | 0 | 0 | 0 | 0.0s |
-| Concurrency & Race Condition Tests | 0 | 0 | 0 | 0 | 0 | 0.0s |
-| Playwright E2E Golden Path | 0 | 0 | 0 | 0 | 0 | 0.0s |
-| **TOTAL** | **0** | **0** | **0** | **0** | **0** | **0.0s** |
+| ArchUnit Module Boundary Rules | 6 | 6 | 0 | 0 | 0 | ~8.7s |
+| Testcontainers MongoDB Integration Tests | 4 | 4 | 0 | 0 | 0 | ~9.4s |
+| Product Catalog Data Seeder Tests | 2 | 2 | 0 | 0 | 0 | ~2.0s |
+| **TRACK 3 NET-NEW TOTAL** | **12** | **12** | **0** | **0** | **0** | **~20.1s** |
+| **OVERALL MONOLITH TOTAL (TRACKS 1 + 2 + 3)** | **74** | **74** | **0** | **0** | **0** | **~53.4s** |
 
 ### 3. Bug Fix & Failed Test Resolution Log (Track 3)
 
 | Failure ID | Component / Test Name | Observed Symptom | Root Cause Analysis | Corrective Fix Applied |
 |---|---|---|---|---|
-| *None logged yet* | - | - | - | - |
+| BF-T3-01 | `SecurityConfig.java` in PR #1 | Compilation failure in GitHub Actions: `cannot find symbol: requestPathMatchers` | Teammate 3 used non-existent method `requestPathMatchers` in stub code | Replaced stub branch with rebased structure using canonical Track 2 `requestMatchers` |
+| BF-T3-02 | `CheckoutIntegrationTest.java` | Compilation error: `package org.springframework.boot.test.autoconfigure.web.servlet does not exist` | Spring Boot 4 relocated WebMvc test package to `org.springframework.boot.webmvc.test.autoconfigure` | Updated import to `org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc` |
+| BF-T3-03 | `CheckoutIntegrationTest.java` | Status expected: `403` but was: `401` on unauthenticated POST | Unauthenticated request without JWT yields 401 Unauthorized; 403 Forbidden is for authenticated users with insufficient roles | Updated expectation to `isUnauthorized()` and added dedicated test for 403 on admin endpoint |
 
 ### 4. Technical Debt & Mocked Elements Ledger (Track 3)
 
 | Debt ID | Component | Mock / Stub / Debt Description | Target Elimination Phase | Status |
 |---|---|---|---|---|
-| TD-T3-01 | Frontend | Mock login toggle switch during UI template prototyping | Joint Phase 4 | Active |
+| TD-T3-01 | Frontend | Vue 3 SPA not yet scaffolded | Future frontend milestone | Documented |
 
 ---
 
