@@ -1,0 +1,8 @@
+spring:
+  application:
+    name: shopping-cart-monolith-test
+  mongodb:
+    uri: mongodb://127.0.0.1:27018/shopping_cart_test?replicaSet=rs0&directConnection=true
+  data:
+    mongodb:
+      auto-index-creation: true

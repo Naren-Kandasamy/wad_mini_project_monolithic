@@ -1,39 +1,43 @@
 package com.example.shoppingcart.security;
 
-import com.example.shoppingcart.shared.error.ResourceNotFoundException;
+import com.example.shoppingcart.cart.service.CartService;
+import com.example.shoppingcart.checkout.service.CheckoutService;
+import com.example.shoppingcart.order.service.OrderService;
+import com.example.shoppingcart.product.service.ProductService;
+import com.example.shoppingcart.shared.error.OrderNotFoundException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
-import java.time.Instant;
-import java.util.List;
 import java.util.Map;
 
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest(properties = {"spring.main.allow-bean-definition-overriding=true"})
+/**
+ * Full-stack security integration tests against the REAL Track 1 controllers
+ * (domain services mocked) plus the real SecurityConfig filter chain.
+ * Only /api/admin/stats uses a test-local controller, since no real admin endpoint exists yet.
+ */
+@SpringBootTest
 @AutoConfigureMockMvc
-@Import({
-        SecurityIntegrationTest.DummyProductController.class,
-        SecurityIntegrationTest.DummyCartController.class,
-        SecurityIntegrationTest.DummyOrderController.class,
-        SecurityIntegrationTest.DummyAdminController.class
-})
+@Import(SecurityIntegrationTest.DummyAdminController.class)
 class SecurityIntegrationTest {
 
     @Autowired
@@ -42,47 +46,17 @@ class SecurityIntegrationTest {
     @MockitoBean
     private JwtDecoder jwtDecoder;
 
-    @TestConfiguration
-    static class TestSecurityConfig {
-    }
+    @MockitoBean
+    private ProductService productService;
 
-    // Dummy controllers simulating API endpoints to verify route authorization rules
-    @RestController
-    @RequestMapping("/api/products")
-    static class DummyProductController {
-        @GetMapping
-        public List<String> listProducts() {
-            return List.of("Product1", "Product2");
-        }
+    @MockitoBean
+    private CartService cartService;
 
-        @PostMapping
-        public Map<String, String> createProduct() {
-            return Map.of("status", "created");
-        }
-    }
+    @MockitoBean
+    private OrderService orderService;
 
-    @RestController
-    @RequestMapping("/api/carts/me")
-    static class DummyCartController {
-        @GetMapping
-        public Map<String, Object> getMyCart() {
-            return Map.of("userId", SecurityUtils.getAuthenticatedUserId());
-        }
-    }
-
-    @RestController
-    @RequestMapping("/api/orders")
-    static class DummyOrderController {
-        @GetMapping("/{id}")
-        public Map<String, Object> getOrder(@PathVariable String id) {
-            String currentUserId = SecurityUtils.getAuthenticatedUserId();
-            // Simulating: order-1 belongs to user-alice; order-2 belongs to user-bob
-            if ("order-1".equals(id) && !"user-alice".equals(currentUserId) && !SecurityUtils.hasRole("ADMIN")) {
-                throw new ResourceNotFoundException("Order not found: " + id);
-            }
-            return Map.of("orderId", id, "owner", "user-alice");
-        }
-    }
+    @MockitoBean
+    private CheckoutService checkoutService;
 
     @RestController
     @RequestMapping("/api/admin")
@@ -105,7 +79,7 @@ class SecurityIntegrationTest {
     void postProductUnauthenticatedShouldReturn401() throws Exception {
         mockMvc.perform(post("/api/products")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Test\"}"))
+                        .content("{}"))
                 .andExpect(status().isUnauthorized());
     }
 
@@ -113,22 +87,20 @@ class SecurityIntegrationTest {
     @DisplayName("POST /api/products returns 403 Forbidden for USER role")
     void postProductAsUserShouldReturn403() throws Exception {
         mockMvc.perform(post("/api/products")
-                        .with(jwt().jwt(j -> j.claim("realm_access", Map.of("roles", List.of("USER"))))
-                                .authorities(new SimpleGrantedAuthority("ROLE_USER")))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_USER")))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Test\"}"))
+                        .content("{}"))
                 .andExpect(status().isForbidden());
     }
 
     @Test
-    @DisplayName("POST /api/products returns 200 OK for ADMIN role")
-    void postProductAsAdminShouldReturn200() throws Exception {
+    @DisplayName("POST /api/products passes security for ADMIN (empty body then fails validation with 400, not 401/403)")
+    void postProductAsAdminShouldPassSecurity() throws Exception {
         mockMvc.perform(post("/api/products")
-                        .with(jwt().jwt(j -> j.claim("realm_access", Map.of("roles", List.of("ADMIN"))))
-                                .authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Test\"}"))
-                .andExpect(status().isOk());
+                        .content("{}"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -146,13 +118,18 @@ class SecurityIntegrationTest {
                                 .authorities(new SimpleGrantedAuthority("ROLE_USER")))
                         .header("X-User-Id", "forged-attacker-id")
                         .header("X-User-Role", "ADMIN"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.userId").value("real-user-123"));
+                .andExpect(status().isOk());
+
+        verify(cartService).getCart("real-user-123");
+        verify(cartService, never()).getCart("forged-attacker-id");
     }
 
     @Test
-    @DisplayName("GET /api/orders/{id} returns 404 Not Found when non-admin accesses another user's order (IDOR protection)")
+    @DisplayName("GET /api/orders/{id} returns 404 Not Found when another user's order is requested (IDOR protection)")
     void getOrderForeignUserShouldReturn404() throws Exception {
+        when(orderService.getOrderById("user-bob", "order-1"))
+                .thenThrow(new OrderNotFoundException("order-1"));
+
         mockMvc.perform(get("/api/orders/order-1")
                         .with(jwt().jwt(j -> j.subject("user-bob"))
                                 .authorities(new SimpleGrantedAuthority("ROLE_USER"))))
@@ -162,21 +139,21 @@ class SecurityIntegrationTest {
     }
 
     @Test
-    @DisplayName("GET /api/orders/{id} allows owner to access their order")
+    @DisplayName("GET /api/orders/{id} resolves the lookup with the caller's own Jwt.sub")
     void getOrderOwnerShouldSucceed() throws Exception {
         mockMvc.perform(get("/api/orders/order-1")
                         .with(jwt().jwt(j -> j.subject("user-alice"))
                                 .authorities(new SimpleGrantedAuthority("ROLE_USER"))))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.orderId").value("order-1"));
+                .andExpect(status().isOk());
+
+        verify(orderService).getOrderById("user-alice", "order-1");
     }
 
     @Test
     @DisplayName("GET /api/admin/stats returns 403 Forbidden for USER role")
     void getAdminStatsAsUserShouldReturn403() throws Exception {
         mockMvc.perform(get("/api/admin/stats")
-                        .with(jwt().jwt(j -> j.claim("realm_access", Map.of("roles", List.of("USER"))))
-                                .authorities(new SimpleGrantedAuthority("ROLE_USER"))))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_USER"))))
                 .andExpect(status().isForbidden());
     }
 
@@ -184,8 +161,7 @@ class SecurityIntegrationTest {
     @DisplayName("GET /api/admin/stats returns 200 OK for ADMIN role")
     void getAdminStatsAsAdminShouldReturn200() throws Exception {
         mockMvc.perform(get("/api/admin/stats")
-                        .with(jwt().jwt(j -> j.claim("realm_access", Map.of("roles", List.of("ADMIN"))))
-                                .authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
                 .andExpect(status().isOk());
     }
 

@@ -103,11 +103,14 @@ public class SecurityConfig {
     @Bean
     @org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean(JwtDecoder.class)
     public JwtDecoder jwtDecoder() {
-        NimbusJwtDecoder jwtDecoder = JwtDecoders.fromIssuerLocation(issuerUri);
-        OAuth2TokenValidator<Jwt> withIssuer = JwtValidators.createDefaultWithIssuer(issuerUri);
-        OAuth2TokenValidator<Jwt> audienceValidator = new AudienceValidator(expectedAudience);
-        OAuth2TokenValidator<Jwt> validator = new DelegatingOAuth2TokenValidator<>(withIssuer, audienceValidator);
-        jwtDecoder.setJwtValidator(validator);
-        return jwtDecoder;
+        // Lazy: issuer discovery happens on first token validation, not at startup,
+        // so the monolith (and tests) boot without a reachable Keycloak.
+        return new SupplierJwtDecoder(() -> {
+            NimbusJwtDecoder jwtDecoder = JwtDecoders.fromIssuerLocation(issuerUri);
+            OAuth2TokenValidator<Jwt> withIssuer = JwtValidators.createDefaultWithIssuer(issuerUri);
+            OAuth2TokenValidator<Jwt> audienceValidator = new AudienceValidator(expectedAudience);
+            jwtDecoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(withIssuer, audienceValidator));
+            return jwtDecoder;
+        });
     }
 }

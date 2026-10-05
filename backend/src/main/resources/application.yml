@@ -1,16 +1,19 @@
 server:
-  port: 8080
+  port: ${SERVER_PORT:8080}
 
 spring:
   application:
     name: shopping-cart-monolith
+  mongodb:
+    uri: ${MONGODB_URI:mongodb://localhost:27017/shopping_cart?replicaSet=rs0&directConnection=true}
+  data:
+    mongodb:
+      auto-index-creation: true
   security:
     oauth2:
       resourceserver:
         jwt:
           issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/shopping-cart}
-          audiences:
-            - shopping-cart-api
 
 app:
   security:
@@ -24,8 +27,20 @@ app:
       - PUT
       - DELETE
       - OPTIONS
+      - PATCH
     allowed-headers:
       - Authorization
       - Content-Type
       - Idempotency-Key
       - X-Request-Id
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when_authorized
+      probes:
+        enabled: true

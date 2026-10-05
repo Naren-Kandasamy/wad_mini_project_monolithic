@@ -18,45 +18,63 @@ import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Unified RFC 7807 / 9457 ProblemDetail error mapping for the whole monolith
+ * (Track 1 domain exceptions + Track 2 security/platform exceptions).
+ */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+    private static ResponseEntity<ProblemDetail> problem(HttpStatus status, String title, String detail) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
+        problem.setTitle(title);
+        problem.setType(URI.create("about:blank"));
+        return ResponseEntity.status(status).body(problem);
+    }
+
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ProblemDetail> handleAccessDenied(AccessDeniedException ex, WebRequest request) {
         log.warn("Access denied: {}", ex.getMessage());
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
-        problem.setTitle("Forbidden");
-        problem.setType(URI.create("about:blank"));
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(problem);
+        return problem(HttpStatus.FORBIDDEN, "Forbidden", ex.getMessage());
     }
 
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<ProblemDetail> handleAuthenticationException(AuthenticationException ex, WebRequest request) {
         log.warn("Authentication failed: {}", ex.getMessage());
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, ex.getMessage());
-        problem.setTitle("Unauthorized");
-        problem.setType(URI.create("about:blank"));
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(problem);
+        return problem(HttpStatus.UNAUTHORIZED, "Unauthorized", ex.getMessage());
     }
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ProblemDetail> handleResourceNotFound(ResourceNotFoundException ex, WebRequest request) {
         log.info("Resource not found: {}", ex.getMessage());
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
-        problem.setTitle("Not Found");
-        problem.setType(URI.create("about:blank"));
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
+        return problem(HttpStatus.NOT_FOUND, "Not Found", ex.getMessage());
+    }
+
+    @ExceptionHandler({
+            ProductNotFoundException.class,
+            CartNotFoundException.class,
+            OrderNotFoundException.class
+    })
+    public ResponseEntity<ProblemDetail> handleDomainNotFound(Exception ex, WebRequest request) {
+        log.info("Domain resource not found: {}", ex.getMessage());
+        return problem(HttpStatus.NOT_FOUND, "Not Found", ex.getMessage());
     }
 
     @ExceptionHandler(ConflictException.class)
     public ResponseEntity<ProblemDetail> handleConflict(ConflictException ex, WebRequest request) {
         log.warn("Conflict detected: {}", ex.getMessage());
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
-        problem.setTitle("Conflict");
-        problem.setType(URI.create("about:blank"));
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+        return problem(HttpStatus.CONFLICT, "Conflict", ex.getMessage());
+    }
+
+    @ExceptionHandler({
+            CartVersionConflictException.class,
+            CartEmptyException.class
+    })
+    public ResponseEntity<ProblemDetail> handleDomainConflict(Exception ex, WebRequest request) {
+        log.warn("Domain conflict detected: {}", ex.getMessage());
+        return problem(HttpStatus.CONFLICT, "Conflict", ex.getMessage());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -73,24 +91,22 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(problem);
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ProblemDetail> handleBadRequest(IllegalArgumentException ex, WebRequest request) {
+        log.warn("Bad request: {}", ex.getMessage());
+        return problem(HttpStatus.BAD_REQUEST, "Bad Request", ex.getMessage());
+    }
+
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ProblemDetail> handleNoResourceFound(NoResourceFoundException ex, WebRequest request) {
         log.info("No resource found: {}", ex.getMessage());
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, "The requested resource was not found.");
-        problem.setTitle("Not Found");
-        problem.setType(URI.create("about:blank"));
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
+        return problem(HttpStatus.NOT_FOUND, "Not Found", "The requested resource was not found.");
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ProblemDetail> handleGeneralException(Exception ex, WebRequest request) {
         log.error("Unhandled server error", ex);
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
-                HttpStatus.INTERNAL_SERVER_ERROR,
-                "An unexpected server error occurred."
-        );
-        problem.setTitle("Internal Server Error");
-        problem.setType(URI.create("about:blank"));
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(problem);
+        return problem(HttpStatus.INTERNAL_SERVER_ERROR, "Internal Server Error",
+                "An unexpected server error occurred.");
     }
 }
