@@ -26,7 +26,7 @@ When reviewing and executing changes across phases, all developers cross-referen
 
 | Track / Stream | Owner & Scope | Branch | Status | Tests Run | Pass Rate | Unresolved Tech Debt |
 |---|---|---|---|---|---|---|
-| **Track 1** | Teammate 1: Core Domain & Tx Engine | `feature/track1-core-domain` | 🟢 Complete | 37 | 100% | 1 (`SecurityContextPrincipalResolver`) |
+| **Track 1** | Teammate 1: Core Domain & Tx Engine | `feature/track1-core-domain` | 🟢 Complete | 37 | 100% | 8 documented handoff debts |
 | **Track 2** | Teammate 2: Security & Platform API | `feature/track2-security-platform` | 🟡 Ready to Begin | 0 | - | 0 |
 | **Track 3** | Teammate 3: Infra, Vue 3 & E2E Suite | `feature/track3-infra-frontend-tests` | 🟡 Ready to Begin | 0 | - | 0 |
 | **Joint Phase 4**| All Teammates: Merge, Smoke & Hardening | `main` | ⚪ Pending | 0 | - | - |
@@ -79,11 +79,20 @@ When reviewing and executing changes across phases, all developers cross-referen
 | BF-T1-05 | `CheckoutTransactionIntegrationTest` | Timestamp assertion mismatch between JVM `Instant.now()` and MongoDB BSON date. | JVM `Instant` has nanosecond precision; MongoDB BSON date stores millisecond precision. | Asserted equality using `toEpochMilli()`. |
 | BF-T1-06 | `CartVersionConflictIntegrationTest` | Version conflict rollback test did not trigger conflict. | Artificially updating version in MongoDB before `processCheckout` caused `loadForCheckout` to load the newer version. | Used `@MockitoSpyBean` on `CartApi` to mutate cart version concurrently at the exact invocation instant of `finalizeCheckout`. |
 
-### 4. Technical Debt & Mocked Elements Ledger (Track 1)
+### 4. Technical Debt, Mocks & Stubs Ledger (Track 1)
 
-| Debt ID | Component | Mock / Stub / Debt Description | Target Elimination Phase | Status |
+The following items were intentionally mocked, stubbed, hardcoded, or bypassed during Track 1 development to maintain track isolation and enable unblocked offline development. All items have explicit removal triggers and target tracks:
+
+| Debt ID | Component & Exact Code Location | Nature of Debt (Mock/Stub/Hardcoding/Bypass) | Target Elimination Milestone | Handoff Owner & Action Required Upon Integration |
 |---|---|---|---|---|
-| TD-T1-01 | Shared Security | `SecurityContextPrincipalResolver` defaults to `"user1"` when no JWT security filter is engaged | Joint Phase 4 | Active (Planned handoff to Track 2) |
+| **TD-T1-01** | `SecurityContextPrincipalResolver.java:14` | **Hardcoded Principal Fallback**: Returns hardcoded `"user1"` when `SecurityContextHolder` contains no active JWT authentication token. | Track 2 (Security) & Phase 4 | **Teammate 2**: Once Keycloak OAuth2 Resource Server filter chain is configured, delete or disable the `"user1"` fallback in production/joint profile so unauthenticated requests fail with 401 Unauthorized. |
+| **TD-T1-02** | `ProductController.java` (`POST`, `PUT`, `DELETE`) & `OrderController.java` (`/admin/{orderId}`) | **Missing Method Security Annotations**: Endpoints lack `@PreAuthorize("hasRole('ADMIN')")` or `@PreAuthorize("hasRole('USER')")` guards. | Track 2 (Security) | **Teammate 2**: Enable `@EnableMethodSecurity` and add `@PreAuthorize("hasRole('ADMIN')")` to catalog mutations and admin order lookup; add `@PreAuthorize("hasRole('USER')")` to cart and checkout routes. |
+| **TD-T1-03** | Controller Tests (`ProductControllerTest`, `CartControllerTest`, `OrderControllerTest`, `CheckoutControllerTest`) | **Bypassed Security Filters**: Tests use `@AutoConfigureMockMvc(addFilters = false)` to test HTTP route logic without requiring mock JWT decoders. | Track 2 (Security) & Phase 4 | **Teammate 2**: Implement dedicated security filter integration tests using `@WithMockJwt` verifying JWT claims, signature checks, audience `shopping-cart-api`, and role mapping. |
+| **TD-T1-04** | `backend/src/test/resources/application.yml` & `application-test.yml` | **Non-Standard Test Port**: `spring.mongodb.uri` targets port `27018` because host standalone MongoDB occupied port `27017`. | Track 3 (Infra) & Phase 4 | **Teammate 3**: Once `infra/docker-compose.yml` runs single-node replica set `rs0` on standard port `27017`, realign test YAML default URI to `${MONGODB_URI:mongodb://localhost:27017/shopping_cart?replicaSet=rs0&directConnection=true}`. |
+| **TD-T1-05** | `CheckoutController.java:31` | **Server-Side Idempotency-Key Fallback**: Generates `UUID.randomUUID().toString()` when client omits the `Idempotency-Key` HTTP header. | Track 3 (Frontend) | **Teammate 3**: In Vue 3 Pinia store / checkout action, generate an action-scoped UUID `Idempotency-Key` header on every user button click so network retries safely replay without duplication. |
+| **TD-T1-06** | Product Catalog Storage (`ProductRepository`) | **No Default Catalog Database Seeder**: Catalog products are created exclusively inside test fixtures; no default seed bean exists for local development. | Track 3 (Frontend) & Phase 4 | **Teammate 3**: Add a `ProductDataSeeder` (`CommandLineRunner`) active under `dev` / `docker` profiles to automatically populate default products (Keyboard, Mouse, Monitor) on application startup. |
+| **TD-T1-07** | Monolith Root / Web MVC Filter Chain | **CORS Configuration Not Yet Declared**: No `CorsConfigurationSource` bean is configured yet; browser requests from Vite (`http://localhost:5173`) would be blocked by CORS SOP. | Track 2 (Security) | **Teammate 2**: In `SecurityConfig`, register a `CorsConfigurationSource` allowing `http://localhost:5173` and `http://localhost:80` with headers `Authorization`, `Idempotency-Key`, `Content-Type`. |
+| **TD-T1-08** | Monolith Root / Logging & Observability | **No MDC Correlation ID Filter**: HTTP requests do not yet extract `X-Request-Id` into SLF4J MDC or echo it into error responses. | Track 2 (Platform API) | **Teammate 2**: Implement `CorrelationIdFilter` adding `X-Request-Id` to MDC and include it in RFC 7807/9457 `ProblemDetail` responses. |
 
 ---
 
@@ -189,6 +198,13 @@ When reviewing and executing changes across phases, all developers cross-referen
 
 | Debt ID | Originating Track | Original Debt Description | Verification of Complete Removal | Sign-off Date |
 |---|---|---|---|---|
-| TD-T1-01 | Track 1 | Mock product seed | Verified persistent MongoDB collection backing | Pending |
-| TD-T2-01 | Track 2 | Mock JWKS decoder | Verified live Keycloak JWKS endpoint validation | Pending |
-| TD-T3-01 | Track 3 | Mock login toggle switch | Verified real OIDC Authorization Code + PKCE flow | Pending |
+| **TD-T1-01** | Track 1 | Hardcoded `"user1"` fallback in `SecurityContextPrincipalResolver` | Verified 401 Unauthorized returned on missing/invalid JWT; claims extracted strictly from `Jwt.sub` | Pending |
+| **TD-T1-02** | Track 1 | Missing method security annotations (`@PreAuthorize`) on catalog and order endpoints | Verified 403 Forbidden returned when user lacks `ROLE_ADMIN` on admin routes | Pending |
+| **TD-T1-03** | Track 1 | Bypassed security filters (`addFilters = false`) in controller tests | Verified Security filter integration tests passing with `@WithMockJwt` | Pending |
+| **TD-T1-04** | Track 1 | Test MongoDB replica set port 27018 override | Verified test and application configs standardizing on port 27017 replica set | Pending |
+| **TD-T1-05** | Track 1 | Server-side auto-generated UUID fallback for `Idempotency-Key` header | Verified Vue 3 frontend explicitly generates and sends `Idempotency-Key` per checkout click | Pending |
+| **TD-T1-06** | Track 1 | Absence of default catalog database seed bean | Verified `ProductDataSeeder` seeds catalog on initial application startup | Pending |
+| **TD-T1-07** | Track 1 | Undeclared CORS filter for Vite development server | Verified `CorsConfigurationSource` allows frontend SPA origins | Pending |
+| **TD-T1-08** | Track 1 | Absence of MDC logging and correlation ID filter | Verified `CorrelationIdFilter` adds `X-Request-Id` to SLF4J MDC and ProblemDetail | Pending |
+| **TD-T2-01** | Track 2 | Mock JWKS decoder used for isolated offline tests | Verified live Keycloak JWKS endpoint validation | Pending |
+| **TD-T3-01** | Track 3 | Mock login toggle switch during UI template prototyping | Verified real OIDC Authorization Code + PKCE flow | Pending |
