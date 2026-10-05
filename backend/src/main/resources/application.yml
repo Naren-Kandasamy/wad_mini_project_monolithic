@@ -5,7 +5,7 @@ spring:
   application:
     name: shopping-cart-monolith
   mongodb:
-    uri: ${MONGODB_URI:mongodb://localhost:27017/shopping_cart?replicaSet=rs0&directConnection=true}
+    uri: ${MONGODB_URI:mongodb://localhost:27018/shopping_cart?replicaSet=rs0&directConnection=true}
   data:
     mongodb:
       auto-index-creation: true

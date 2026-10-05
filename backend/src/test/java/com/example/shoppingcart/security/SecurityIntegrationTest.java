@@ -33,11 +33,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * Full-stack security integration tests against the REAL Track 1 controllers
  * (domain services mocked) plus the real SecurityConfig filter chain.
- * Only /api/admin/stats uses a test-local controller, since no real admin endpoint exists yet.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import(SecurityIntegrationTest.DummyAdminController.class)
 class SecurityIntegrationTest {
 
     @Autowired
@@ -57,15 +55,6 @@ class SecurityIntegrationTest {
 
     @MockitoBean
     private CheckoutService checkoutService;
-
-    @RestController
-    @RequestMapping("/api/admin")
-    static class DummyAdminController {
-        @GetMapping("/stats")
-        public Map<String, String> getStats() {
-            return Map.of("system", "ok");
-        }
-    }
 
     @Test
     @DisplayName("GET /api/products is publicly accessible without token")

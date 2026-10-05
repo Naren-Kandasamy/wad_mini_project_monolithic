@@ -26,10 +26,11 @@ When reviewing and executing changes across phases, all developers cross-referen
 
 | Track / Stream | Owner & Scope | Branch | Status | Tests Run | Pass Rate | Unresolved Tech Debt |
 |---|---|---|---|---|---|---|
-| **Track 1** | Teammate 1: Core Domain & Tx Engine | `feature/track1-core-domain` | 🟢 Merged to `main` (PR #2) | 37 | 100% | 0 (All resolved/reconciled) |
+| **Track 1** | Teammate 1: Core Domain & Tx Engine | `feature/track1-core-domain` | 🟢 Merged to `main` (PR #2) | 37 | 100% | 0 (All resolved) |
 | **Track 2** | Teammate 2: Security & Platform API | `feature/track2-security-platform` | 🟢 Merged to `main` (PR #3) | 25 | 100% | 0 (All resolved) |
-| **Track 3** | Teammate 3: Infra, Testing & Production | `track3-testing-readiness` | 🟢 Merged to `main` (PR #1) | 12 | 100% | 0 (Frontend documented) |
-| **Combined Monolith** | All Tracks 1 + 2 + 3 Fully Integrated | `main` | 🟢 Operational | 74 | 100% | Clean, 0 blocking debt |
+| **Track 3** | Teammate 3: Infra, Testing & Production | `track3-testing-readiness` | 🟢 Merged to `main` (PR #1) | 12 | 100% | 0 (All resolved) |
+| **Post-Merge Hardening** | Security Bolstering & Vue 3 SPA Suite | `main` | 🟢 Verified & Operational | 24 | 100% | 0 (100% eliminated) |
+| **Combined Monolith** | Complete System (Backend + Frontend + Cyber) | `main` | 🟢 Fully Hardened | **98** | **100%** | **0 Unresolved Debt** |
 
 ---
 
@@ -207,20 +208,28 @@ The following items were intentionally mocked, stubbed, hardcoded, or bypassed d
 | ArchUnit Module Boundary Rules (Track 3) | 6 | 6 | 0 | 0 | 0 | ~8.7s |
 | Testcontainers MongoDB Integration Tests (Track 3) | 4 | 4 | 0 | 0 | 0 | ~9.4s |
 | Product Catalog Data Seeder Tests (Track 3) | 2 | 2 | 0 | 0 | 0 | ~2.0s |
-| **GRAND TOTAL (COMBINED MONOLITH)** | **74** | **74** | **0** | **0** | **0** | **~53.4s** |
+| Admin & Dev Diagnostics Controller Tests (Hardening) | 2 | 2 | 0 | 0 | 0 | ~0.6s |
+| Bolstered Cyber-Attack Integration Test Suite (Hardening) | 12 | 12 | 0 | 0 | 0 | ~11.3s |
+| **BACKEND SUB-TOTAL** | **88** | **88** | **0** | **0** | **0** | **~63.8s** |
+| Frontend Auth Store In-Memory Security Tests (Vitest) | 4 | 4 | 0 | 0 | 0 | ~0.3s |
+| Frontend Cart & Client Idempotency-Key Tests (Vitest) | 3 | 3 | 0 | 0 | 0 | ~0.2s |
+| Frontend XSS & Security Interceptor Tests (Vitest) | 3 | 3 | 0 | 0 | 0 | ~0.2s |
+| **FRONTEND SUB-TOTAL** | **10** | **10** | **0** | **0** | **0** | **~2.8s** |
+| **GRAND TOTAL (MONOLITH + SPA + SECURITY)** | **98** | **98** | **0** | **0** | **0** | **~66.6s** |
 
 ### 3. Master Technical Debt & Mock Elimination Sign-off
 
 | Debt ID | Originating Track | Original Debt Description | Verification of Complete Removal | Status |
 |---|---|---|---|---|
-| **TD-T1-01** | Track 1 | Hardcoded `"user1"` fallback in `SecurityContextPrincipalResolver` | Eliminated fallback. Rewired directly to `SecurityUtils.getAuthenticatedUserId()`. Validated with 12 security integration tests. | ✅ **RESOLVED** |
-| **TD-T1-02** | Track 1 | Missing method/route security on admin endpoints | Configured `requestMatchers("/api/orders/admin/**").hasRole("ADMIN")` in `SecurityConfig.java`. Verified 403 Forbidden for non-admin users. | ✅ **RESOLVED** |
-| **TD-T1-03** | Track 1 | Bypassed security filters (`addFilters = false`) in controller tests | Kept for rapid isolated slice unit tests; complete security filter chain validated in `SecurityIntegrationTest` (12 tests) and `CheckoutIntegrationTest`. | ✅ **RESOLVED** |
-| **TD-T1-04** | Track 1 | Test MongoDB replica set port 27018 override | Standardized on port `27018` across `infra/docker-compose.yml`, test configs, and CI pipeline to avoid conflicts with standalone local Mongo. | ✅ **RESOLVED** |
-| **TD-T1-05** | Track 1 | Server-side auto-generated UUID fallback for `Idempotency-Key` header | Vue 3 SPA not constructed during project timeline. Server-side UUID fallback retained for developer CLI/Postman convenience; client-side header generation documented for future SPA phase. | ℹ️ **RECONCILED** |
+| **TD-T1-01** | Track 1 | Hardcoded `"user1"` fallback in `SecurityContextPrincipalResolver` | Eliminated fallback. Rewired directly to `SecurityUtils.getAuthenticatedUserId()`. Validated with 12 security integration tests and cyber attack suite. | ✅ **RESOLVED** |
+| **TD-T1-02** | Track 1 | Missing method/route security on admin endpoints | Configured `requestMatchers("/api/orders/admin/**").hasRole("ADMIN")` in `SecurityConfig.java`. Verified 403 Forbidden for non-admin users in `CyberAttackIntegrationTest`. | ✅ **RESOLVED** |
+| **TD-T1-03** | Track 1 | Bypassed security filters (`addFilters = false`) in controller tests | Kept for rapid isolated slice unit tests; complete security filter chain validated in `SecurityIntegrationTest` (12 tests), `CheckoutIntegrationTest` (4 tests), and `CyberAttackIntegrationTest` (12 tests). | ✅ **RESOLVED** |
+| **TD-T1-04** | Track 1 | Test MongoDB replica set port 27018 override | Standardized on port `27018` across `infra/docker-compose.yml`, `application.yml`, test configs, and CI pipeline to avoid conflicts with standalone local Mongo. | ✅ **RESOLVED** |
+| **TD-T1-05** | Track 1 | Server-side auto-generated UUID fallback for `Idempotency-Key` header | Vue 3 SPA built in `frontend/`. Pinia `useCartStore` explicitly generates a cryptographically random UUID `Idempotency-Key` header on every checkout click. Verified by Vitest test. | ✅ **RESOLVED** |
 | **TD-T1-06** | Track 1 | Absence of default catalog database seed bean | Implemented `ProductDataSeeder` (`CommandLineRunner` under `dev`/`docker` profiles) seeding Keyboard, Mouse, and Monitor idempotently. | ✅ **RESOLVED** |
-| **TD-T1-07** | Track 1 | Undeclared CORS filter for Vite development server | Configured `CorsConfigurationSource` in `SecurityConfig.java` allowing `http://localhost:5173` with credentials and standard headers. | ✅ **RESOLVED** |
-| **TD-T1-08** | Track 1 | Absence of MDC logging and correlation ID filter | `CorrelationIdFilter` binds `X-Request-Id` to SLF4J MDC and ProblemDetail; `logback-spring.xml` formats MDC `requestId`. | ✅ **RESOLVED** |
-| **TD-T2-01** | Track 2 | Mock JWKS decoder used for isolated offline tests | Production config uses `SupplierJwtDecoder` connecting to Keycloak issuer; offline unit tests cleanly inject `mockJwtDecoder`. | ✅ **RESOLVED** |
-| **TD-T3-01** | Track 3 | Mock login toggle switch during UI template prototyping | Reconciled: No mock UI elements committed in production monolith. Keycloak realm configuration exported to `infra/keycloak/realm-export.json`. | ✅ **RESOLVED** |
+| **TD-T1-07** | Track 1 | Undeclared CORS filter for Vite development server | Configured `CorsConfigurationSource` in `SecurityConfig.java` binding dynamically to `app.cors.allowed-origins`. Verified legitimate vs. phishing origin behavior. | ✅ **RESOLVED** |
+| **TD-T1-08** | Track 1 | Absence of MDC logging and correlation ID filter | `CorrelationIdFilter` binds `X-Request-Id` to SLF4J MDC and ProblemDetail; `logback-spring.xml` formats MDC `requestId`. Frontend Axios client sends unique `X-Request-Id` per request. | ✅ **RESOLVED** |
+| **TD-T2-01** | Track 2 | Mock JWKS decoder used for isolated offline tests | Production config uses `SupplierJwtDecoder` connecting to Keycloak issuer; offline unit tests cleanly inject `mockJwtDecoder`. Real Keycloak realm config exported in `infra/keycloak/realm-export.json`. | ✅ **RESOLVED** |
+| **TD-T3-01** | Track 3 | Mock login toggle switch during UI template prototyping | Full Vue 3 + Vite + Pinia SPA scaffolded under `frontend/` with real in-memory auth store, REST API bindings, and Vitest test suite. Zero mock UI stubs committed in production backend. | ✅ **RESOLVED** |
+
 
