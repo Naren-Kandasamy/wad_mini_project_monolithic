@@ -212,17 +212,33 @@
           v-for="product in filteredProducts"
           :key="product.id"
           class="product-card ceramic-card"
+          :style="cardTiltStyles[product.id] || {}"
+          @mousemove="handleCardMouseMove($event, product.id)"
+          @mouseleave="handleCardMouseLeave(product.id)"
         >
-          <!-- Product Media Image Card with Recessed Ceramic Dish -->
+          <!-- Specular Sheen Layer on Hover -->
+          <div class="card-sheen" :style="sheenStyles[product.id] || {}"></div>
+
+          <!-- Product Media Image Card with Recessed Ceramic Dish & Vector Blueprint -->
           <div class="card-media ceramic-dish">
-            <div class="media-placeholder" :style="getGradientForProduct(product.name)">
-              <div class="media-seal wax-seal">
-                <SvgIcon :name="getIconForProduct(product.name)" size="26" color="var(--surface-dark)" />
-              </div>
-            </div>
+            <HardwareIllustration
+              :name="product.name"
+              :finish="selectedFinishes[product.id] || 'terracotta'"
+            />
             <span class="stock-badge embossed-badge">
               <span class="stock-dot"></span> In Stock
             </span>
+
+            <!-- Quick Specs Blueprint Trigger Button -->
+            <button
+              type="button"
+              class="quick-specs-btn"
+              title="Inspect Architectural Specs"
+              @click.stop="openSpecsDrawer(product)"
+            >
+              <SvgIcon name="sliders" size="13" color="var(--surface-dark)" />
+              <span>Specs</span>
+            </button>
           </div>
 
           <!-- Card Body -->
@@ -237,6 +253,36 @@
 
             <h3 class="product-title font-display">{{ product.name }}</h3>
             <p class="product-description">{{ product.description }}</p>
+
+            <!-- Physical Finish Material Swatches -->
+            <div class="swatches-selector-row">
+              <span class="swatches-label">FINISH:</span>
+              <div class="swatches-group">
+                <button
+                  v-for="f in availableFinishes"
+                  :key="f.id"
+                  type="button"
+                  class="swatch-btn"
+                  :class="{ active: (selectedFinishes[product.id] || 'terracotta') === f.id }"
+                  :style="{ backgroundColor: f.color }"
+                  :title="`${f.name} anodized finish`"
+                  @click.stop="selectFinish(product.id, f.id)"
+                />
+              </div>
+              <span class="swatch-name-display">{{ getFinishName(selectedFinishes[product.id] || 'terracotta') }}</span>
+            </div>
+
+            <!-- Audition Mechanical Switch Button (Keyboards only) -->
+            <div v-if="isKeyboardProduct(product.name)" class="audition-action-row">
+              <button
+                type="button"
+                class="btn-audition-switch"
+                @click.stop="openSoundTester"
+              >
+                <SvgIcon name="volume-2" size="14" color="var(--accent-terracotta)" />
+                <span>Audition Switch Acoustics</span>
+              </button>
+            </div>
           </div>
 
           <!-- Card Footer (Price & Action) -->
@@ -269,6 +315,15 @@
         </article>
       </div>
     </section>
+
+    <!-- Modals & Drawers -->
+    <SwitchSoundTester ref="soundTesterRef" />
+    <HardwareSpecsDrawer
+      v-model="isSpecsDrawerOpen"
+      :product="activeSpecsProduct"
+      :finish="selectedFinishes[activeSpecsProduct?.id || ''] || 'terracotta'"
+      @addToCart="addToCart"
+    />
   </div>
 </template>
 
@@ -281,6 +336,9 @@ import { useToastStore } from '../stores/toast'
 import SvgIcon from '../components/SvgIcon.vue'
 import SkeletonCard from '../components/SkeletonCard.vue'
 import ServiceOfflineCard from '../components/ServiceOfflineCard.vue'
+import HardwareIllustration from '../components/HardwareIllustration.vue'
+import SwitchSoundTester from '../components/SwitchSoundTester.vue'
+import HardwareSpecsDrawer from '../components/HardwareSpecsDrawer.vue'
 
 interface Product {
   id: string
@@ -288,7 +346,7 @@ interface Product {
   description: string
   price: number
   sku: string
-  active: boolean
+  active?: boolean
 }
 
 const products = ref<Product[]>([])
@@ -296,6 +354,81 @@ const loading = ref(false)
 const connectionError = ref(false)
 const addingId = ref<string | null>(null)
 const recentlyAdded = ref<string | null>(null)
+
+// Hardware Finish Material Swatches
+const selectedFinishes = ref<Record<string, string>>({})
+const availableFinishes = [
+  { id: 'terracotta', name: 'Terracotta', color: '#BD6346' },
+  { id: 'slate', name: 'Graphite Slate', color: '#2C333D' },
+  { id: 'linen', name: 'Ceramic Linen', color: '#D6C8B4' },
+  { id: 'sage', name: 'Nordic Sage', color: '#557060' }
+]
+
+function selectFinish(productId: string, finishId: string) {
+  selectedFinishes.value[productId] = finishId
+}
+
+function getFinishName(finishId: string) {
+  const found = availableFinishes.find((f) => f.id === finishId)
+  return found ? found.name : 'Terracotta'
+}
+
+function isKeyboardProduct(name: string) {
+  return (name || '').toLowerCase().includes('keyboard')
+}
+
+// 3D Perspective Card Tilt & Specular Sheen Physics
+const cardTiltStyles = ref<Record<string, Record<string, string>>>({})
+const sheenStyles = ref<Record<string, Record<string, string>>>({})
+
+function handleCardMouseMove(e: MouseEvent, productId: string) {
+  const card = e.currentTarget as HTMLElement
+  if (!card) return
+  const rect = card.getBoundingClientRect()
+  const x = e.clientX - rect.left
+  const y = e.clientY - rect.top
+  const centerX = rect.width / 2
+  const centerY = rect.height / 2
+
+  const rotateX = -((y - centerY) / centerY) * 6.5
+  const rotateY = ((x - centerX) / centerX) * 6.5
+  const sheenX = (x / rect.width) * 100
+  const sheenY = (y / rect.height) * 100
+
+  cardTiltStyles.value[productId] = {
+    transform: `perspective(1000px) rotateX(${rotateX.toFixed(2)}deg) rotateY(${rotateY.toFixed(2)}deg) translateY(-4px)`,
+    transition: 'transform 0.08s ease-out'
+  }
+  sheenStyles.value[productId] = {
+    background: `radial-gradient(circle at ${sheenX.toFixed(1)}% ${sheenY.toFixed(1)}%, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 65%)`,
+    opacity: '1'
+  }
+}
+
+function handleCardMouseLeave(productId: string) {
+  cardTiltStyles.value[productId] = {
+    transform: 'perspective(1000px) rotateX(0deg) rotateY(0deg) translateY(0)',
+    transition: 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)'
+  }
+  sheenStyles.value[productId] = {
+    opacity: '0',
+    transition: 'opacity 0.4s ease'
+  }
+}
+
+// Switch Sound Tester modal ref
+const soundTesterRef = ref<InstanceType<typeof SwitchSoundTester> | null>(null)
+function openSoundTester() {
+  soundTesterRef.value?.open()
+}
+
+// Hardware Specs Drawer state
+const isSpecsDrawerOpen = ref(false)
+const activeSpecsProduct = ref<Product | null>(null)
+function openSpecsDrawer(product: Product) {
+  activeSpecsProduct.value = product
+  isSpecsDrawerOpen.value = true
+}
 
 const searchQuery = ref('')
 const selectedCategory = ref('All')
@@ -684,6 +817,26 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   height: 100%;
+  position: relative;
+  transform-style: preserve-3d;
+  will-change: transform;
+  transition: box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s ease;
+}
+
+.product-card:hover {
+  box-shadow:
+    0 22px 35px -10px rgba(18, 30, 24, 0.22),
+    0 0 0 1px rgba(189, 99, 70, 0.3);
+}
+
+.card-sheen {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 5;
+  opacity: 0;
+  transition: opacity 0.3s ease;
 }
 
 .card-media {
@@ -691,25 +844,39 @@ onMounted(() => {
   height: 200px;
   overflow: hidden;
   border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-subtle);
 }
 
-.media-placeholder {
-  width: 100%;
-  height: 100%;
+.quick-specs-btn {
+  position: absolute;
+  bottom: 0.75rem;
+  right: 0.75rem;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(4px);
+  border: 1px solid var(--border-subtle);
+  border-radius: 9999px;
+  padding: 0.25rem 0.65rem;
+  font-size: 0.725rem;
+  font-weight: 600;
+  color: var(--surface-dark);
   display: flex;
   align-items: center;
-  justify-content: center;
-  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  gap: 0.3rem;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  z-index: 4;
 }
 
-.product-card:hover .media-placeholder {
-  transform: scale(1.04);
+.quick-specs-btn:hover {
+  background: var(--surface-dark);
+  color: #FFFFFF;
+  border-color: transparent;
+  transform: translateY(-1px);
 }
 
-.media-seal {
-  width: 60px;
-  height: 60px;
-  background: rgba(249, 246, 240, 0.9);
+.quick-specs-btn:hover :deep(.svg-icon) {
+  stroke: #FFFFFF;
 }
 
 .stock-badge {
@@ -721,6 +888,7 @@ onMounted(() => {
   padding: 0.2rem 0.6rem;
   gap: 0.35rem;
   color: var(--text-secondary);
+  z-index: 4;
 }
 
 .stock-dot {
@@ -728,6 +896,82 @@ onMounted(() => {
   height: 6px;
   border-radius: 50%;
   background: var(--accent-success);
+}
+
+/* Swatches */
+.swatches-selector-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.85rem;
+}
+
+.swatches-label {
+  font-size: 0.675rem;
+  font-family: 'DM Mono', monospace;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+}
+
+.swatches-group {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.swatch-btn {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25), 0 1px 2px rgba(0, 0, 0, 0.1);
+  padding: 0;
+}
+
+.swatch-btn:hover {
+  transform: scale(1.2);
+}
+
+.swatch-btn.active {
+  outline: 2px solid var(--accent-terracotta);
+  outline-offset: 2px;
+  transform: scale(1.15);
+}
+
+.swatch-name-display {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+/* Audition Button */
+.audition-action-row {
+  margin-bottom: 0.75rem;
+}
+
+.btn-audition-switch {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px dashed var(--accent-terracotta);
+  background: rgba(189, 99, 70, 0.06);
+  color: var(--accent-terracotta);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-audition-switch:hover {
+  background: rgba(189, 99, 70, 0.14);
+  transform: translateY(-1px);
 }
 
 .card-body {

@@ -1,8 +1,8 @@
 <template>
   <div class="cart-page container-wide">
     <div class="cart-header">
-      <h1 class="cart-title font-display">Review Your Basket</h1>
-      <p class="cart-subtitle">Verify selected pieces before placing your secure, idempotent order.</p>
+      <h1 class="cart-title font-display">Precision Checkout</h1>
+      <p class="cart-subtitle">Guided 3-step checkout with RFC 7231 cryptographic idempotency defense.</p>
     </div>
 
     <!-- Error Alert Banner -->
@@ -11,25 +11,81 @@
       <span>{{ cartStore.error }}</span>
     </div>
 
-    <!-- Order Confirmed Success Screen -->
-    <div v-if="checkoutSuccess" class="success-card tactile-card">
+    <!-- 3-Step Tactile Checkout Stepper Header -->
+    <div v-if="cartStore.items.length > 0 || checkoutSuccess" class="stepper-nav debossed-well">
+      <button
+        type="button"
+        class="step-item"
+        :class="{ active: currentStep === 1, completed: currentStep > 1 }"
+        @click="goToStep(1)"
+      >
+        <span class="step-num font-mono">01</span>
+        <div class="step-info">
+          <span class="step-title font-display">Basket Review</span>
+          <span class="step-sub">{{ cartStore.itemCount }} Items</span>
+        </div>
+      </button>
+
+      <div class="step-arrow font-mono">→</div>
+
+      <button
+        type="button"
+        class="step-item"
+        :class="{ active: currentStep === 2, completed: currentStep > 2 }"
+        :disabled="cartStore.items.length === 0"
+        @click="goToStep(2)"
+      >
+        <span class="step-num font-mono">02</span>
+        <div class="step-info">
+          <span class="step-title font-display">Shipping &amp; Security Lock</span>
+          <span class="step-sub">RFC 7231 Idempotent</span>
+        </div>
+      </button>
+
+      <div class="step-arrow font-mono">→</div>
+
+      <div
+        class="step-item"
+        :class="{ active: currentStep === 3 }"
+      >
+        <span class="step-num font-mono">03</span>
+        <div class="step-info">
+          <span class="step-title font-display">Order Confirmation</span>
+          <span class="step-sub">Warranty Certificate</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3: Order Confirmed Success Screen -->
+    <div v-if="currentStep === 3 && checkoutSuccess" class="success-card tactile-card">
       <div class="success-seal embossed-seal">
         <SvgIcon name="check" size="32" color="var(--accent-success)" />
       </div>
-      <h2 class="success-title font-display">Order Successfully Placed</h2>
+      <div class="confirmation-pill font-mono">CRYPTOGRAPHIC TRANSACTION AUTHORIZED</div>
+      <h2 class="success-title font-display">Hardware Order Confirmed</h2>
       <p class="success-text">
-        Thank you for your order! Your transaction has been cryptographically confirmed and assigned Order ID:
+        Your precision hardware order has been verified and registered on our atomic inventory ledger.
       </p>
+
       <div class="order-id-badge embossed-badge">
         <span>Order #{{ checkoutSuccess.orderId }}</span>
       </div>
-      <p class="order-total-text">
-        Total Charged: <strong class="text-terracotta">${{ Number(checkoutSuccess.totalAmount).toFixed(2) }}</strong>
-      </p>
+
+      <div class="confirmation-meta debossed-well">
+        <div class="meta-row">
+          <span class="meta-label">Total Amount:</span>
+          <span class="meta-val font-display text-terracotta">${{ Number(checkoutSuccess.totalAmount).toFixed(2) }}</span>
+        </div>
+        <div class="meta-row">
+          <span class="meta-label">Protection:</span>
+          <span class="meta-val font-mono">RFC 7231 Idempotency-Key Locked</span>
+        </div>
+      </div>
+
       <div class="success-actions">
         <router-link to="/orders" class="btn-forest">
           <SvgIcon name="package" size="18" />
-          <span>View Order History</span>
+          <span>View Orders &amp; Warranty Slip</span>
         </router-link>
         <router-link to="/" class="btn-secondary">
           <span>Continue Shopping</span>
@@ -58,11 +114,12 @@
       </router-link>
     </div>
 
-    <!-- 2-Column Checkout Layout -->
+    <!-- Step 1 & Step 2 Checkout Layout -->
     <div v-else class="cart-layout-grid">
-      <!-- Left Column: Items List -->
-      <div class="cart-items-column">
-        <div class="ceramic-card items-card">
+      <!-- Left Column -->
+      <div class="cart-left-column">
+        <!-- STEP 1: Items List -->
+        <div v-if="currentStep === 1" class="ceramic-card items-card">
           <div class="items-card-header">
             <div class="flex items-center gap-2">
               <span class="items-count-tag font-display">{{ cartStore.itemCount }} Items</span>
@@ -129,15 +186,129 @@
           </div>
         </div>
 
+        <!-- STEP 2: Shipping Address & Idempotency Lock -->
+        <div v-else-if="currentStep === 2" class="step-shipping-container">
+          <!-- Shipping Address Form -->
+          <div class="ceramic-card shipping-card">
+            <div class="card-section-header">
+              <div class="wax-seal-dark section-seal">
+                <SvgIcon name="package" size="18" color="var(--accent-sage)" />
+              </div>
+              <div>
+                <h3 class="section-title font-display">Courier Dispatch Destination</h3>
+                <p class="section-sub">Insured white-glove transport directly to your workstation</p>
+              </div>
+            </div>
+
+            <form class="shipping-form" @submit.prevent="proceedToCheckout">
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Full Name / Recipient</label>
+                  <input
+                    v-model="shippingForm.fullName"
+                    type="text"
+                    required
+                    placeholder="e.g. Alex Mercer"
+                    class="form-input"
+                  />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Contact Email</label>
+                  <input
+                    v-model="shippingForm.email"
+                    type="email"
+                    required
+                    placeholder="alex@workstation.io"
+                    class="form-input"
+                  />
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Street Address</label>
+                <input
+                  v-model="shippingForm.address"
+                  type="text"
+                  required
+                  placeholder="742 Silicon Parkway, Suite 400"
+                  class="form-input"
+                />
+              </div>
+
+              <div class="form-row form-row-3">
+                <div class="form-group">
+                  <label class="form-label">City</label>
+                  <input
+                    v-model="shippingForm.city"
+                    type="text"
+                    required
+                    placeholder="San Francisco"
+                    class="form-input"
+                  />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Postal / ZIP Code</label>
+                  <input
+                    v-model="shippingForm.postalCode"
+                    type="text"
+                    required
+                    placeholder="94107"
+                    class="form-input font-mono"
+                  />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Country</label>
+                  <select v-model="shippingForm.country" class="form-input">
+                    <option value="United States">United States</option>
+                    <option value="Germany">Germany</option>
+                    <option value="Japan">Japan</option>
+                    <option value="United Kingdom">United Kingdom</option>
+                    <option value="Singapore">Singapore</option>
+                  </select>
+                </div>
+              </div>
+            </form>
+          </div>
+
+          <!-- RFC 7231 Idempotency Key Lock Card -->
+          <div class="ceramic-card idempotency-card debossed-well">
+            <div class="idempotency-header">
+              <div class="flex items-center gap-2">
+                <div class="lock-indicator-dot"></div>
+                <span class="font-display lock-title">RFC 7231 Idempotency Lock Active</span>
+              </div>
+              <span class="badge-lock font-mono">ATOMIC GUARD</span>
+            </div>
+
+            <p class="idempotency-explanation">
+              A cryptographically unique execution token has been initialized on the client heap. If network timeouts or duplicate button taps occur, the server guarantees your transaction executes at most once.
+            </p>
+
+            <div class="token-display-box">
+              <span class="token-header font-mono">HEADER: Idempotency-Key</span>
+              <code class="token-value font-mono">{{ pendingIdempotencyKey }}</code>
+            </div>
+          </div>
+        </div>
+
         <div class="back-link-box">
-          <router-link to="/" class="continue-link">
+          <button
+            v-if="currentStep === 2"
+            type="button"
+            class="continue-link btn-link"
+            @click="currentStep = 1"
+          >
+            <SvgIcon name="chevron-left" size="16" />
+            <span>Back to Basket Items</span>
+          </button>
+          <router-link v-else to="/" class="continue-link">
             <SvgIcon name="chevron-left" size="16" />
             <span>Continue Shopping</span>
           </router-link>
         </div>
       </div>
 
-      <!-- Right Column: Sticky Order Summary & Checkout -->
+      <!-- Right Column: Sticky Order Summary & Stepper Action -->
       <div class="summary-column">
         <div class="ceramic-card summary-card">
           <h3 class="summary-title font-display">Order Summary</h3>
@@ -148,12 +319,12 @@
               <span class="font-display">${{ Number(cartStore.subtotal).toFixed(2) }}</span>
             </div>
             <div class="breakdown-row">
-              <span>Shipping &amp; Handling</span>
+              <span>Insured Transport</span>
               <span class="free-shipping">Complimentary</span>
             </div>
             <div class="breakdown-row">
-              <span>Estimated Tax</span>
-              <span>$0.00</span>
+              <span>Concurrency Lock</span>
+              <span class="font-mono text-sage">v{{ cartStore.version }} Active</span>
             </div>
           </div>
 
@@ -162,19 +333,31 @@
             <span class="total-amount font-display">${{ Number(cartStore.subtotal).toFixed(2) }}</span>
           </div>
 
-          <!-- Checkout Primary CTA -->
+          <!-- Step 1 Button: Proceed to Step 2 -->
           <button
+            v-if="currentStep === 1"
+            type="button"
+            class="btn-clay-terracotta checkout-btn"
+            @click="proceedToShipping"
+          >
+            <span>Proceed to Shipping &amp; Security</span>
+            <SvgIcon name="arrow-right" size="18" />
+          </button>
+
+          <!-- Step 2 Button: Confirm & Place Order -->
+          <button
+            v-else-if="currentStep === 2"
             type="button"
             class="btn-clay-terracotta checkout-btn"
             :disabled="cartStore.loading"
-            @click="handleCheckout"
+            @click="proceedToCheckout"
           >
             <template v-if="cartStore.loading">
-              <span>Processing Order...</span>
+              <span>Executing Idempotent Order...</span>
             </template>
             <template v-else>
-              <span>Confirm &amp; Place Order</span>
-              <SvgIcon name="arrow-right" size="18" />
+              <span>Authorize &amp; Place Order</span>
+              <SvgIcon name="shield" size="18" color="#FFFFFF" />
             </template>
           </button>
 
@@ -205,19 +388,51 @@ import SvgIcon from '../components/SvgIcon.vue'
 const cartStore = useCartStore()
 const authStore = useAuthStore()
 const toastStore = useToastStore()
+
+const currentStep = ref<1 | 2 | 3>(1)
 const checkoutSuccess = ref<CheckoutResponse | null>(null)
 
-async function handleCheckout() {
+const pendingIdempotencyKey = ref(
+  typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : 'idem-' + Math.random().toString(36).substring(2, 12)
+)
+
+const shippingForm = ref({
+  fullName: 'Alex Mercer',
+  email: 'alex@workstation.io',
+  address: '742 Silicon Parkway, Suite 400',
+  city: 'San Francisco',
+  postalCode: '94107',
+  country: 'United States'
+})
+
+function goToStep(step: 1 | 2 | 3) {
+  if (step === 2 && cartStore.items.length === 0) return
+  if (step === 3 && !checkoutSuccess.value) return
+  currentStep.value = step
+}
+
+function proceedToShipping() {
+  if (!authStore.isAuthenticated) {
+    authStore.openAuthModal()
+    toastStore.show('Please sign in to proceed with checkout', 'info')
+    return
+  }
+  currentStep.value = 2
+}
+
+async function proceedToCheckout() {
   if (!authStore.isAuthenticated) {
     authStore.openAuthModal()
     toastStore.show('Please sign in to place your order', 'info')
     return
   }
 
-  checkoutSuccess.value = null
   try {
     const res = await cartStore.checkout()
     checkoutSuccess.value = res
+    currentStep.value = 3
     toastStore.show('Order successfully confirmed!', 'success')
   } catch (err: any) {
     if (authStore.isDeveloper) {
@@ -287,7 +502,7 @@ onMounted(() => {
 }
 
 .cart-header {
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
 }
 
 .cart-title {
@@ -300,6 +515,85 @@ onMounted(() => {
 .cart-subtitle {
   font-size: 0.95rem;
   color: var(--text-muted);
+}
+
+/* 3-Step Stepper Header */
+.stepper-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.75rem;
+  border-radius: 1rem;
+  margin-bottom: 2.5rem;
+  gap: 1rem;
+}
+
+.step-item {
+  background: transparent;
+  border: none;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.75rem;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s ease;
+  color: var(--text-muted);
+}
+
+.step-item:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.step-num {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.step-item.active .step-num {
+  background: var(--accent-terracotta);
+  color: #FFFFFF;
+  border-color: transparent;
+  box-shadow: 0 4px 10px rgba(189, 99, 70, 0.3);
+}
+
+.step-item.completed .step-num {
+  background: var(--accent-success);
+  color: #FFFFFF;
+  border-color: transparent;
+}
+
+.step-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.step-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--surface-dark);
+}
+
+.step-sub {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.step-arrow {
+  color: var(--text-muted);
+  font-size: 1.1rem;
 }
 
 .alert-banner {
@@ -337,6 +631,13 @@ onMounted(() => {
   border-color: rgba(46, 125, 82, 0.2);
 }
 
+.confirmation-pill {
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  color: var(--accent-success);
+  margin-bottom: 0.5rem;
+}
+
 .success-title {
   font-size: 2rem;
   color: var(--surface-dark);
@@ -360,13 +661,34 @@ onMounted(() => {
   margin-bottom: 1.25rem;
 }
 
+.confirmation-meta {
+  width: 100%;
+  max-width: 380px;
+  padding: 1rem 1.25rem;
+  border-radius: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 2rem;
+}
+
+.meta-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.meta-label {
+  color: var(--text-muted);
+}
+
 .text-terracotta {
   color: var(--accent-terracotta);
 }
 
-.order-total-text {
-  font-size: 1.1rem;
-  margin-bottom: 2rem;
+.text-sage {
+  color: var(--accent-sage);
 }
 
 .success-actions {
@@ -459,9 +781,12 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1.35rem 0;
+  padding: 1.25rem 0;
   border-bottom: 1px solid var(--border-subtle);
-  gap: 1.5rem;
+}
+
+.cart-row:last-child {
+  border-bottom: none;
 }
 
 .item-meta {
@@ -469,14 +794,14 @@ onMounted(() => {
 }
 
 .item-title {
-  font-size: 1.05rem;
+  font-size: 1rem;
   font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 0.2rem;
+  color: var(--surface-dark);
+  margin-bottom: 0.25rem;
 }
 
 .unit-price {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: var(--text-muted);
 }
 
@@ -487,52 +812,56 @@ onMounted(() => {
 }
 
 .stepper-box {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  background: var(--canvas-alt);
-  border-radius: 0.65rem;
-  padding: 0.15rem;
+  background: var(--surface-subtle);
   border: 1px solid var(--border-subtle);
+  border-radius: 9999px;
+  padding: 0.2rem 0.35rem;
 }
 
 .stepper-btn {
   background: transparent;
   border: none;
-  cursor: pointer;
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-secondary);
-  border-radius: 0.45rem;
+  cursor: pointer;
+  color: var(--text-primary);
   transition: all 0.15s ease;
 }
 
 .stepper-btn:hover:not(:disabled) {
   background: #FFFFFF;
-  color: var(--text-primary);
+}
+
+.stepper-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
 
 .stepper-value {
+  padding: 0 0.65rem;
   font-size: 0.85rem;
   font-weight: 600;
-  min-width: 32px;
-  text-align: center;
+  color: var(--surface-dark);
 }
 
 .item-subtotal-box {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 0.75rem;
+  min-width: 90px;
+  justify-content: flex-end;
 }
 
 .line-price {
-  font-size: 1.15rem;
-  font-weight: 600;
+  font-size: 1.05rem;
+  font-weight: 700;
   color: var(--surface-dark);
-  min-width: 70px;
-  text-align: right;
 }
 
 .remove-icon-btn {
@@ -540,12 +869,161 @@ onMounted(() => {
   border: none;
   cursor: pointer;
   color: var(--text-muted);
-  padding: 4px;
-  transition: color 0.15s ease;
+  padding: 0.35rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
 }
 
 .remove-icon-btn:hover {
+  background: #FDF2F0;
   color: var(--accent-danger);
+}
+
+/* Step 2 Shipping Form */
+.step-shipping-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.shipping-card {
+  padding: 1.75rem;
+}
+
+.card-section-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.section-seal {
+  width: 42px;
+  height: 42px;
+}
+
+.section-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--surface-dark);
+}
+
+.section-sub {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.shipping-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.form-row-3 {
+  grid-template-columns: 1.2fr 1fr 1fr;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.form-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--surface-dark);
+}
+
+.form-input {
+  width: 100%;
+  padding: 0.65rem 0.85rem;
+  border-radius: 0.6rem;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-subtle);
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.form-input:focus {
+  border-color: var(--accent-terracotta);
+  background: #FFFFFF;
+}
+
+/* Idempotency Card */
+.idempotency-card {
+  padding: 1.5rem;
+  border-radius: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.idempotency-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.lock-indicator-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-success);
+  box-shadow: 0 0 6px var(--accent-success);
+}
+
+.lock-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--surface-dark);
+}
+
+.badge-lock {
+  font-size: 0.65rem;
+  padding: 0.2rem 0.5rem;
+  background: var(--surface-card);
+  border-radius: 4px;
+  color: var(--accent-terracotta);
+  border: 1px solid var(--border-subtle);
+}
+
+.idempotency-explanation {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.token-display-box {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  border: 1px solid var(--border-subtle);
+}
+
+.token-header {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+}
+
+.token-value {
+  font-size: 0.8rem;
+  color: var(--accent-terracotta);
+  word-break: break-all;
 }
 
 .back-link-box {
@@ -555,27 +1033,31 @@ onMounted(() => {
 .continue-link {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 600;
   color: var(--text-secondary);
   text-decoration: none;
-  font-size: 0.9rem;
-  font-weight: 600;
-  transition: color 0.15s ease;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
 }
 
 .continue-link:hover {
   color: var(--accent-terracotta);
 }
 
-/* Summary Card */
+/* Right Summary Column */
 .summary-card {
   padding: 1.75rem;
   position: sticky;
-  top: 96px;
+  top: 6rem;
 }
 
 .summary-title {
   font-size: 1.3rem;
+  font-weight: 700;
   color: var(--surface-dark);
   margin-bottom: 1.25rem;
 }
@@ -583,16 +1065,17 @@ onMounted(() => {
 .summary-breakdown {
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
+  gap: 0.75rem;
   padding-bottom: 1.25rem;
   border-bottom: 1px solid var(--border-subtle);
-  font-size: 0.9rem;
-  color: var(--text-secondary);
+  margin-bottom: 1.25rem;
 }
 
 .breakdown-row {
   display: flex;
   justify-content: space-between;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
 }
 
 .free-shipping {
@@ -604,34 +1087,35 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  padding: 1.25rem 0;
+  margin-bottom: 1.75rem;
 }
 
 .total-label {
-  font-size: 1.05rem;
-  font-weight: 600;
-  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--surface-dark);
 }
 
 .total-amount {
-  font-size: 1.6rem;
+  font-size: 1.75rem;
   font-weight: 700;
   color: var(--surface-dark);
 }
 
 .checkout-btn {
   width: 100%;
-  padding: 0.9rem 1.25rem;
+  padding: 0.85rem 1.25rem;
   font-size: 0.95rem;
+  justify-content: center;
+  margin-bottom: 1.5rem;
 }
 
 .security-guarantees {
-  margin-top: 1.5rem;
-  padding-top: 1.25rem;
-  border-top: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 0.65rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border-subtle);
 }
 
 .guarantee-item {
@@ -642,8 +1126,12 @@ onMounted(() => {
   color: var(--text-muted);
 }
 
-@media (max-width: 860px) {
+@media (max-width: 900px) {
   .cart-layout-grid {
+    grid-template-columns: 1fr;
+  }
+  .form-row,
+  .form-row-3 {
     grid-template-columns: 1fr;
   }
 }

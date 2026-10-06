@@ -22,6 +22,9 @@ public class KeycloakJwtAuthenticationConverter implements Converter<Jwt, Abstra
     @Override
     public AbstractAuthenticationToken convert(Jwt jwt) {
         Collection<GrantedAuthority> authorities = extractRealmRoles(jwt);
+        if (authorities.isEmpty()) {
+            authorities = Collections.singleton(new SimpleGrantedAuthority("ROLE_USER"));
+        }
         return new JwtAuthenticationToken(jwt, authorities, jwt.getSubject());
     }
 

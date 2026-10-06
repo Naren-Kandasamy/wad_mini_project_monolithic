@@ -9,10 +9,12 @@
       <router-view />
     </main>
 
-    <!-- Global Cart Drawer, Unified Auth Modal, DevTools HUD & Toasts -->
+    <!-- Global Cart Drawer, Unified Auth Modal, DevTools HUD, Command Palette, Sticky Basket & Toasts -->
     <CartDrawer />
     <AuthModal />
     <DevToolsDrawer />
+    <CommandPalette />
+    <StickyBasketBar />
     <ToastContainer />
 
     <!-- Tactile Editorial Footer -->
@@ -62,6 +64,8 @@ import Navbar from './components/Navbar.vue'
 import CartDrawer from './components/CartDrawer.vue'
 import AuthModal from './components/AuthModal.vue'
 import DevToolsDrawer from './components/DevToolsDrawer.vue'
+import CommandPalette from './components/CommandPalette.vue'
+import StickyBasketBar from './components/StickyBasketBar.vue'
 import ToastContainer from './components/ToastContainer.vue'
 import SvgIcon from './components/SvgIcon.vue'
 </script>

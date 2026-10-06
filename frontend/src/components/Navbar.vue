@@ -29,6 +29,18 @@
 
       <!-- Right: Unified Auth & Cart Actions -->
       <div class="action-section">
+        <!-- Quick Command Palette Trigger -->
+        <button
+          type="button"
+          class="cmd-k-trigger-btn"
+          @click="openCommandPalette"
+          title="Search catalog (Ctrl+K)"
+        >
+          <SvgIcon name="search" size="14" color="var(--text-muted)" />
+          <span class="cmd-k-text">Search...</span>
+          <kbd class="cmd-k-kbd font-mono">⌘K</kbd>
+        </button>
+
         <!-- Single Unified Authentication State -->
         <div class="auth-box">
           <template v-if="authStore.isAuthenticated">
@@ -87,6 +99,10 @@ import SvgIcon from './SvgIcon.vue'
 
 const authStore = useAuthStore()
 const cartStore = useCartStore()
+
+function openCommandPalette() {
+  window.dispatchEvent(new CustomEvent('open-command-palette'))
+}
 </script>
 
 <style scoped>
@@ -268,8 +284,40 @@ const cartStore = useCartStore()
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
+.cmd-k-trigger-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: 9999px;
+  padding: 0.4rem 0.75rem 0.4rem 0.85rem;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 0.825rem;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.cmd-k-trigger-btn:hover {
+  background: #FFFFFF;
+  border-color: var(--accent-terracotta);
+  color: var(--text-primary);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.cmd-k-kbd {
+  font-size: 0.65rem;
+  background: rgba(0, 0, 0, 0.06);
+  padding: 0.15rem 0.35rem;
+  border-radius: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
 @media (max-width: 768px) {
   .nav-links {
+    display: none;
+  }
+  .cmd-k-trigger-btn {
     display: none;
   }
   .cart-label {
