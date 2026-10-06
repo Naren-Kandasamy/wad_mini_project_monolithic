@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import axios from 'axios'
+import { useCartStore } from './cart'
 
 export interface UserProfile {
   sub: string
@@ -60,6 +61,13 @@ export const useAuthStore = defineStore('auth', () => {
     accessToken.value = tokenValue
     user.value = profile
     authMode.value = mode
+
+    try {
+      const cartStore = useCartStore()
+      cartStore.syncCartWithServer()
+    } catch {
+      // Store initializing or isolated context
+    }
   }
 
   /**

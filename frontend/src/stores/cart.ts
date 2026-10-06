@@ -89,6 +89,45 @@ export const useCartStore = defineStore('cart', () => {
     isDrawerOpen.value = !isDrawerOpen.value
   }
 
+  async function syncCartWithServer() {
+    if (!cart.value || !Array.isArray(cart.value.items) || cart.value.items.length === 0) {
+      return
+    }
+
+    try {
+      const response = await apiClient.get<CartResponse>('/carts/me')
+      const serverItems = response.data?.items || []
+
+      // If server cart already has items, prioritize server aggregate
+      if (serverItems.length > 0) {
+        cart.value = response.data
+        persistCart(cart.value)
+        return
+      }
+
+      // If server cart is empty but client has local items, push all local items to server
+      for (const item of cart.value.items) {
+        try {
+          await apiClient.post<CartResponse>('/carts/me/items', {
+            productId: item.productId,
+            quantity: item.quantity
+          })
+        } catch (itemErr) {
+          console.warn('[CartStore] Error syncing item to server:', item.productId, itemErr)
+        }
+      }
+
+      // Re-fetch authoritative cart snapshot from server
+      const updatedResponse = await apiClient.get<CartResponse>('/carts/me')
+      if (updatedResponse.data && Array.isArray(updatedResponse.data.items)) {
+        cart.value = updatedResponse.data
+        persistCart(cart.value)
+      }
+    } catch (err: any) {
+      console.warn('[CartStore] syncCartWithServer error:', err?.message || err)
+    }
+  }
+
   async function fetchCart() {
     loading.value = true
     error.value = null
@@ -98,6 +137,9 @@ export const useCartStore = defineStore('cart', () => {
         if (response.data.items.length > 0 || !cart.value || cart.value.items.length === 0) {
           cart.value = response.data
           persistCart(cart.value)
+        } else if (cart.value && cart.value.items.length > 0 && response.data.items.length === 0) {
+          // Local cart has items, but server cart is empty: reconcile to server
+          await syncCartWithServer()
         }
       }
     } catch (err: any) {
@@ -256,6 +298,9 @@ export const useCartStore = defineStore('cart', () => {
     loading.value = true
     error.value = null
 
+    // Ensure local basket items are fully synchronized to the server's MongoDB cart before checkout
+    await syncCartWithServer()
+
     // Client-side UUID generation for Idempotency-Key
     const idempotencyKey = typeof crypto !== 'undefined' && crypto.randomUUID
       ? crypto.randomUUID()
@@ -301,6 +346,7 @@ export const useCartStore = defineStore('cart', () => {
     closeDrawer,
     toggleDrawer,
     fetchCart,
+    syncCartWithServer,
     addItem,
     updateQuantity,
     removeItem,

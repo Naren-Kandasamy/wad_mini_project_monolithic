@@ -18,13 +18,41 @@ public class ProductServiceImpl implements ProductService {
 
     private final ProductRepository productRepository;
 
+    private static final java.util.Map<String, String> FALLBACK_SKU_MAP = java.util.Map.of(
+        "prod-fallback-1", "SKU-KB-001",
+        "prod-fallback-2", "SKU-MS-001",
+        "prod-fallback-3", "SKU-MON-001",
+        "prod-fallback-4", "SKU-KB-002",
+        "prod-fallback-5", "SKU-MON-002",
+        "prod-fallback-6", "SKU-AUD-001",
+        "prod-fallback-7", "SKU-PER-001"
+    );
+
     public ProductServiceImpl(ProductRepository productRepository) {
         this.productRepository = productRepository;
     }
 
     @Override
     public Optional<ProductSnapshot> getAvailableProduct(String productId) {
-        return productRepository.findById(productId)
+        if (productId == null || productId.isBlank()) {
+            return Optional.empty();
+        }
+
+        Optional<ProductDocument> docOpt = productRepository.findById(productId);
+
+        if (docOpt.isEmpty()) {
+            docOpt = productRepository.findBySku(productId);
+        }
+
+        if (docOpt.isEmpty() && FALLBACK_SKU_MAP.containsKey(productId)) {
+            docOpt = productRepository.findBySku(FALLBACK_SKU_MAP.get(productId));
+        }
+
+        if (docOpt.isEmpty()) {
+            docOpt = productRepository.findByName(productId);
+        }
+
+        return docOpt
             .filter(ProductDocument::isActive)
             .map(doc -> new ProductSnapshot(
                 doc.getId(),
@@ -45,8 +73,17 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public ProductResponse getProductById(String id) {
-        ProductDocument doc = productRepository.findById(id)
-            .orElseThrow(() -> new ProductNotFoundException(id));
+        Optional<ProductDocument> docOpt = productRepository.findById(id);
+
+        if (docOpt.isEmpty()) {
+            docOpt = productRepository.findBySku(id);
+        }
+
+        if (docOpt.isEmpty() && FALLBACK_SKU_MAP.containsKey(id)) {
+            docOpt = productRepository.findBySku(FALLBACK_SKU_MAP.get(id));
+        }
+
+        ProductDocument doc = docOpt.orElseThrow(() -> new ProductNotFoundException(id));
         return ProductResponse.fromDocument(doc);
     }
 
