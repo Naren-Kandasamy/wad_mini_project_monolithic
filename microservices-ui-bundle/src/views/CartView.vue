@@ -399,7 +399,8 @@ function handleErrorAction(type?: string) {
   if (type === 'login') {
     authStore.openAuthModal()
   } else if (type === 'refresh' || type === 'retry') {
-    cartStore.fetchCart()
+    cartStore.error = null
+    cartStore.syncCartWithServer()
   } else if (type === 'catalog') {
     router.push('/')
   }

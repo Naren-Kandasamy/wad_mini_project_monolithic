@@ -563,6 +563,26 @@ async function loadProducts(isManual = false) {
       if (typeof window !== 'undefined' && window.localStorage) {
         window.localStorage.setItem('aura_catalog_cache', JSON.stringify(res.data))
       }
+
+      // Reconcile any fallback IDs in the cart with the authoritative product IDs from the backend
+      if (cartStore.cart && Array.isArray(cartStore.cart.items)) {
+        let cartChanged = false
+        for (const item of cartStore.cart.items) {
+          if (item.productId.startsWith('prod-fallback-')) {
+            const fallbackObj = DEFAULT_FALLBACK_PRODUCTS.find(f => f.id === item.productId)
+            if (fallbackObj) {
+              const matchedDbProd = res.data.find(p => p.sku === fallbackObj.sku || p.name === fallbackObj.name)
+              if (matchedDbProd) {
+                item.productId = matchedDbProd.id
+                cartChanged = true
+              }
+            }
+          }
+        }
+        if (cartChanged) {
+          cartStore.syncCartWithServer()
+        }
+      }
     }
     if (isManual) {
       toastStore.show('Catalog inventory synchronized', 'success')

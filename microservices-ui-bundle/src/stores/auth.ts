@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import axios from 'axios'
+import { useCartStore } from './cart'
 
 export interface UserProfile {
   sub: string
@@ -60,6 +61,13 @@ export const useAuthStore = defineStore('auth', () => {
     accessToken.value = tokenValue
     user.value = profile
     authMode.value = mode
+
+    try {
+      const cartStore = useCartStore()
+      cartStore.syncCartWithServer()
+    } catch {
+      // Store initializing or isolated context
+    }
   }
 
   /**
@@ -176,6 +184,23 @@ export const useAuthStore = defineStore('auth', () => {
 
     if (existing) {
       throw new Error('An account with this username or email already exists.')
+    }
+
+    const apiOrigin = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '')
+    const registerUrl = apiOrigin ? `${apiOrigin}/api/auth/register` : '/api/auth/register'
+
+    try {
+      await axios.post(registerUrl, {
+        username: cleanUsername,
+        email: cleanEmail,
+        password: payload.password,
+        name: payload.name || cleanUsername
+      }, { timeout: 5000 })
+    } catch (apiErr: any) {
+      if (apiErr.response?.status === 409) {
+        throw new Error('An account with this username or email already exists.')
+      }
+      console.warn('[AuthStore] Backend registration notice:', apiErr.message)
     }
 
     localRegisteredUsers.value[cleanUsername] = {
