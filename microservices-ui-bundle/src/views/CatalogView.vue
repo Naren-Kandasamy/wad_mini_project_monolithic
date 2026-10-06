@@ -179,14 +179,14 @@
         <SkeletonCard v-for="n in 6" :key="n" />
       </div>
 
-      <!-- Service Offline State (Decoupled from Empty State) -->
-      <ServiceOfflineCard
-        v-else-if="connectionError"
-        title="Catalog Temporarily Offline"
-        message="Our inventory service is currently synchronizing with the store database. Please check back shortly or retry your connection."
-        endpoint="/api/products"
-        :onRetry="loadProducts"
-      />
+      <!-- Service Offline / Error State (Role Adaptive) -->
+      <div v-else-if="connectionError" class="catalog-error-wrap">
+        <RoleAdaptiveErrorBanner
+          :error="catalogError"
+          @retry="loadProducts"
+          @action="handleErrorAction"
+        />
+      </div>
 
       <!-- Empty State -->
       <div v-else-if="filteredProducts.length === 0" class="empty-catalog tactile-card">
@@ -209,10 +209,10 @@
       <!-- Products Grid -->
       <div v-else class="products-grid">
         <article
-          v-for="product in filteredProducts"
+          v-for="(product, index) in filteredProducts"
           :key="product.id"
-          class="product-card ceramic-card"
-          :style="cardTiltStyles[product.id] || {}"
+          class="product-card ceramic-card card-stagger-item"
+          :style="{ ...(cardTiltStyles[product.id] || {}), '--card-index': index }"
           @mousemove="handleCardMouseMove($event, product.id)"
           @mouseleave="handleCardMouseLeave(product.id)"
         >
@@ -336,6 +336,7 @@ import { useToastStore } from '../stores/toast'
 import SvgIcon from '../components/SvgIcon.vue'
 import SkeletonCard from '../components/SkeletonCard.vue'
 import ServiceOfflineCard from '../components/ServiceOfflineCard.vue'
+import RoleAdaptiveErrorBanner from '../components/RoleAdaptiveErrorBanner.vue'
 import HardwareIllustration from '../components/HardwareIllustration.vue'
 import SwitchSoundTester from '../components/SwitchSoundTester.vue'
 import HardwareSpecsDrawer from '../components/HardwareSpecsDrawer.vue'
@@ -352,6 +353,7 @@ interface Product {
 const products = ref<Product[]>([])
 const loading = ref(false)
 const connectionError = ref(false)
+const catalogError = ref<unknown | null>(null)
 const addingId = ref<string | null>(null)
 const recentlyAdded = ref<string | null>(null)
 
@@ -469,17 +471,29 @@ const filteredProducts = computed(() => {
 async function loadProducts() {
   loading.value = true
   connectionError.value = false
+  catalogError.value = null
   try {
     const res = await apiClient.get<Product[]>('/products')
     products.value = res.data
   } catch (err) {
     connectionError.value = true
-    // Only developers receive diagnostic failure notifications; customers see the reassuring offline state
+    catalogError.value = err
+    // Only developers receive diagnostic failure notifications; customers see the reassuring role banner
     if (authStore.isDeveloper) {
       toastStore.show('Catalog API unreachable (Port 8080)', 'error')
     }
   } finally {
     loading.value = false
+  }
+}
+
+function handleErrorAction(type?: string) {
+  if (type === 'OPEN_AUTH') {
+    authStore.openAuthModal()
+  } else if (type === 'REFRESH_PAGE') {
+    loadProducts()
+  } else if (type === 'CONTACT_SUPPORT') {
+    toastStore.show('Support dispatch initiated: help@aurahardware.internal', 'info')
   }
 }
 

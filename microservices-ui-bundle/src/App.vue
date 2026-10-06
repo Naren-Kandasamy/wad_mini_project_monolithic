@@ -6,7 +6,11 @@
     <Navbar />
 
     <main class="main-content">
-      <router-view />
+      <router-view v-slot="{ Component, route }">
+        <transition name="page-glide" mode="out-in">
+          <component :is="Component" :key="route.path" />
+        </transition>
+      </router-view>
     </main>
 
     <!-- Global Cart Drawer, Unified Auth Modal, DevTools HUD, Command Palette, Sticky Basket & Toasts -->
