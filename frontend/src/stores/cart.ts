@@ -34,11 +34,24 @@ export const useCartStore = defineStore('cart', () => {
   const cart = ref<CartResponse | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
+  const isDrawerOpen = ref(false)
 
   const items = computed(() => cart.value?.items || [])
   const itemCount = computed(() => items.value.reduce((sum, item) => sum + item.quantity, 0))
   const subtotal = computed(() => cart.value?.subtotal || 0)
   const version = computed(() => cart.value?.version || 1)
+
+  function openDrawer() {
+    isDrawerOpen.value = true
+  }
+
+  function closeDrawer() {
+    isDrawerOpen.value = false
+  }
+
+  function toggleDrawer() {
+    isDrawerOpen.value = !isDrawerOpen.value
+  }
 
   async function fetchCart() {
     loading.value = true
@@ -170,6 +183,10 @@ export const useCartStore = defineStore('cart', () => {
     itemCount,
     subtotal,
     version,
+    isDrawerOpen,
+    openDrawer,
+    closeDrawer,
+    toggleDrawer,
     fetchCart,
     addItem,
     updateQuantity,
