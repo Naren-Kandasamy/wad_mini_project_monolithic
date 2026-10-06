@@ -6,9 +6,11 @@ import AdminView from '../views/AdminView.vue'
 
 const routes = [
   { path: '/', name: 'catalog', component: CatalogView },
+  { path: '/catalog', redirect: '/' },
   { path: '/cart', name: 'cart', component: CartView },
   { path: '/orders', name: 'orders', component: OrdersView },
-  { path: '/admin', name: 'admin', component: AdminView }
+  { path: '/admin', name: 'admin', component: AdminView },
+  { path: '/:pathMatch(.*)*', redirect: '/' }
 ]
 
 export const router = createRouter({

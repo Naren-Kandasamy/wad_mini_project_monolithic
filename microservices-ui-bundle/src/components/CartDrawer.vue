@@ -154,7 +154,7 @@ const toastStore = useToastStore()
 
 function handleStartShopping() {
   cartStore.closeDrawer()
-  router.push('/catalog')
+  router.push('/')
 }
 
 function handleProceedToCheckout() {

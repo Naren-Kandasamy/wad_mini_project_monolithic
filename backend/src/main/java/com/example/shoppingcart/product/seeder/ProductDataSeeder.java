@@ -24,7 +24,7 @@ import java.util.List;
  * Database Seeder."
  */
 @Component
-@Profile({"dev", "docker"})
+@Profile("!test")
 public class ProductDataSeeder implements CommandLineRunner {
 
     private static final Logger log = LoggerFactory.getLogger(ProductDataSeeder.class);
@@ -51,7 +51,23 @@ public class ProductDataSeeder implements CommandLineRunner {
             new SeedProduct("27-inch Monitor",
                             "QHD IPS 144 Hz gaming monitor with FreeSync Premium",
                             new BigDecimal("299.99"),
-                            "SKU-MON-001")
+                            "SKU-MON-001"),
+            new SeedProduct("Aura Pro Mechanical Keyboard",
+                            "Anodized CNC aluminum mechanical keyboard with hot-swappable tactile linear switches",
+                            new BigDecimal("149.99"),
+                            "SKU-KB-002"),
+            new SeedProduct("Studio Reference Display 4K",
+                            "32-inch 4K UHD color-calibrated IPS reference display with Thunderbolt connectivity",
+                            new BigDecimal("499.99"),
+                            "SKU-MON-002"),
+            new SeedProduct("Studio Planar Audio Headphones",
+                            "Open-back planar magnetic studio headphones with handcrafted walnut acoustic chambers",
+                            new BigDecimal("199.99"),
+                            "SKU-AUD-001"),
+            new SeedProduct("Precision Hardware Desk Mat",
+                            "Anodized micro-textured aluminum workspace mat with non-slip ceramic base",
+                            new BigDecimal("45.00"),
+                            "SKU-PER-001")
         );
 
         int created = 0;

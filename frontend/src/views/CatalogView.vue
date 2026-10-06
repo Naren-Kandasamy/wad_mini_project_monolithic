@@ -167,23 +167,25 @@
         <button
           type="button"
           class="refresh-btn btn-secondary"
-          :disabled="loading"
-          @click="loadProducts"
+          :disabled="isRefreshing || loading"
+          @click="loadProducts(true)"
+          title="Synchronize hardware inventory"
         >
-          <span>Refresh</span>
+          <SvgIcon name="refresh" size="14" :class="{ 'spin-icon': isRefreshing }" />
+          <span>{{ isRefreshing ? 'Refreshing...' : 'Refresh' }}</span>
         </button>
       </div>
 
-      <!-- Loading State: Skeleton Shimmer Grid -->
-      <div v-if="loading" class="products-grid">
+      <!-- Loading State: Skeleton Shimmer Grid (Only on initial cold boot when no cache exists) -->
+      <div v-if="loading && products.length === 0" class="products-grid">
         <SkeletonCard v-for="n in 6" :key="n" />
       </div>
 
-      <!-- Service Offline / Error State (Role Adaptive) -->
-      <div v-else-if="connectionError" class="catalog-error-wrap">
+      <!-- Service Offline / Error State (Role Adaptive) (Only when no cached inventory exists) -->
+      <div v-else-if="connectionError && products.length === 0" class="catalog-error-wrap">
         <RoleAdaptiveErrorBanner
           :error="catalogError"
-          @retry="loadProducts"
+          @retry="loadProducts(true)"
           @action="handleErrorAction"
         />
       </div>
@@ -350,8 +352,85 @@ interface Product {
   active?: boolean
 }
 
-const products = ref<Product[]>([])
+const DEFAULT_FALLBACK_PRODUCTS: Product[] = [
+  {
+    id: 'prod-fallback-1',
+    name: 'Mechanical Keyboard',
+    description: 'Full-size RGB mechanical gaming keyboard, Cherry MX Red switches',
+    price: 79.99,
+    sku: 'SKU-KB-001',
+    active: true
+  },
+  {
+    id: 'prod-fallback-2',
+    name: 'Wireless Mouse',
+    description: 'Ergonomic wireless optical mouse, 2.4 GHz, 12-month battery life',
+    price: 34.99,
+    sku: 'SKU-MS-001',
+    active: true
+  },
+  {
+    id: 'prod-fallback-3',
+    name: '27-inch Monitor',
+    description: 'QHD IPS 144 Hz gaming monitor with FreeSync Premium',
+    price: 299.99,
+    sku: 'SKU-MON-001',
+    active: true
+  },
+  {
+    id: 'prod-fallback-4',
+    name: 'Aura Pro Mechanical Keyboard',
+    description: 'Anodized CNC aluminum mechanical keyboard with hot-swappable tactile linear switches',
+    price: 149.99,
+    sku: 'SKU-KB-002',
+    active: true
+  },
+  {
+    id: 'prod-fallback-5',
+    name: 'Studio Reference Display 4K',
+    description: '32-inch 4K UHD color-calibrated IPS reference display with Thunderbolt connectivity',
+    price: 499.99,
+    sku: 'SKU-MON-002',
+    active: true
+  },
+  {
+    id: 'prod-fallback-6',
+    name: 'Studio Planar Audio Headphones',
+    description: 'Open-back planar magnetic studio headphones with handcrafted walnut acoustic chambers',
+    price: 199.99,
+    sku: 'SKU-AUD-001',
+    active: true
+  },
+  {
+    id: 'prod-fallback-7',
+    name: 'Precision Hardware Desk Mat',
+    description: 'Anodized micro-textured aluminum workspace mat with non-slip ceramic base',
+    price: 45.00,
+    sku: 'SKU-PER-001',
+    active: true
+  }
+]
+
+function loadCachedProducts(): Product[] {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const cached = window.localStorage.getItem('aura_catalog_cache')
+      if (cached) {
+        const parsed = JSON.parse(cached)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed
+        }
+      }
+    } catch {
+      // fallback
+    }
+  }
+  return DEFAULT_FALLBACK_PRODUCTS
+}
+
+const products = ref<Product[]>(loadCachedProducts())
 const loading = ref(false)
+const isRefreshing = ref(false)
 const connectionError = ref(false)
 const catalogError = ref<unknown | null>(null)
 const addingId = ref<string | null>(null)
@@ -468,22 +547,39 @@ const filteredProducts = computed(() => {
   })
 })
 
-async function loadProducts() {
-  loading.value = true
+async function loadProducts(isManual = false) {
+  if (products.value.length === 0) {
+    loading.value = true
+  } else {
+    isRefreshing.value = true
+  }
   connectionError.value = false
   catalogError.value = null
+
   try {
     const res = await apiClient.get<Product[]>('/products')
-    products.value = res.data
+    if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+      products.value = res.data
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem('aura_catalog_cache', JSON.stringify(res.data))
+      }
+    }
+    if (isManual) {
+      toastStore.show('Catalog inventory synchronized', 'success')
+    }
   } catch (err) {
-    connectionError.value = true
     catalogError.value = err
-    // Only developers receive diagnostic failure notifications; customers see the reassuring role banner
+    if (products.value.length === 0) {
+      connectionError.value = true
+    } else if (isManual) {
+      toastStore.show('Synchronized with local hardware catalog cache', 'info')
+    }
     if (authStore.isDeveloper) {
       toastStore.show('Catalog API unreachable (Port 8080)', 'error')
     }
   } finally {
     loading.value = false
+    isRefreshing.value = false
   }
 }
 
@@ -491,7 +587,7 @@ function handleErrorAction(type?: string) {
   if (type === 'OPEN_AUTH') {
     authStore.openAuthModal()
   } else if (type === 'REFRESH_PAGE') {
-    loadProducts()
+    loadProducts(true)
   } else if (type === 'CONTACT_SUPPORT') {
     toastStore.show('Support dispatch initiated: help@aurahardware.internal', 'info')
   }
@@ -502,21 +598,25 @@ async function addToCart(product: Product) {
     authStore.openAuthModal()
     return
   }
-  addingId.value = product.id
-  try {
-    await cartStore.addItem(product.id, 1)
-    recentlyAdded.value = product.id
-    toastStore.show(`Added "${product.name}" to basket`, 'success')
 
-    setTimeout(() => {
-      if (recentlyAdded.value === product.id) {
-        recentlyAdded.value = null
-      }
-    }, 1800)
+  // 1. 0ms INSTANT OPTIMISTIC UI FEEDBACK
+  recentlyAdded.value = product.id
+  toastStore.show(`Added "${product.name}" to basket`, 'success')
+
+  setTimeout(() => {
+    if (recentlyAdded.value === product.id) {
+      recentlyAdded.value = null
+    }
+  }, 1800)
+
+  // 2. DISPATCH STORE WITH PRODUCT METADATA (Immediate local persistence + async background sync)
+  try {
+    await cartStore.addItem(product.id, 1, {
+      productName: product.name,
+      unitPrice: product.price
+    })
   } catch (err) {
-    toastStore.show('Could not add item to basket', 'error')
-  } finally {
-    addingId.value = null
+    toastStore.show('Could not sync basket with server', 'info')
   }
 }
 
@@ -818,6 +918,31 @@ onMounted(() => {
 .section-subtitle {
   font-size: 0.85rem;
   color: var(--text-muted);
+}
+
+.refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.spin-icon {
+  animation: icon-spin 0.8s linear infinite;
+}
+
+@keyframes icon-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Product Grid */
