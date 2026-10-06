@@ -44,6 +44,8 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(customAuthenticationEntryPoint()))
                 .authorizeHttpRequests(auth -> auth
+                        // Public auth registration
+                        .requestMatchers(HttpMethod.POST, "/api/auth/register").permitAll()
                         // Public product catalog browsing
                         .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
                         // Admin-only product catalog modifications
@@ -107,15 +109,17 @@ public class SecurityConfig {
 
     @Bean
     @org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean(JwtDecoder.class)
-    public JwtDecoder jwtDecoder() {
+    public JwtDecoder jwtDecoder(tools.jackson.databind.ObjectMapper objectMapper) {
         // Lazy: issuer discovery happens on first token validation, not at startup,
         // so the monolith (and tests) boot without a reachable Keycloak.
-        return new SupplierJwtDecoder(() -> {
+        JwtDecoder keycloakDecoder = new SupplierJwtDecoder(() -> {
             NimbusJwtDecoder jwtDecoder = JwtDecoders.fromIssuerLocation(issuerUri);
             OAuth2TokenValidator<Jwt> withIssuer = JwtValidators.createDefaultWithIssuer(issuerUri);
             OAuth2TokenValidator<Jwt> audienceValidator = new AudienceValidator(expectedAudience);
             jwtDecoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(withIssuer, audienceValidator));
             return jwtDecoder;
         });
+
+        return new HybridJwtDecoder(keycloakDecoder, objectMapper);
     }
 }

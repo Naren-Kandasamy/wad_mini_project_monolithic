@@ -37,7 +37,7 @@ class ProductDataSeederTest {
 
         seeder.run();
 
-        verify(productService, times(3)).createProduct(any(CreateProductRequest.class));
+        verify(productService, times(7)).createProduct(any(CreateProductRequest.class));
     }
 
     @Test
@@ -45,9 +45,8 @@ class ProductDataSeederTest {
     void skipsSeedingWhenAlreadyPresent() {
         java.time.Instant now = java.time.Instant.now();
         ProductDocument doc = new ProductDocument("id-1", "Existing", "Desc", new BigDecimal("10.00"), "SKU-KB-001", true, now, now);
-        when(productRepository.findBySku("SKU-KB-001")).thenReturn(Optional.of(doc));
+        when(productRepository.findBySku(anyString())).thenReturn(Optional.of(doc));
         when(productRepository.findBySku("SKU-MS-001")).thenReturn(Optional.empty());
-        when(productRepository.findBySku("SKU-MON-001")).thenReturn(Optional.of(doc));
 
         seeder.run();
 
