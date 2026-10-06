@@ -3,6 +3,8 @@
   "realm": "shopping-cart",
   "enabled": true,
   "sslRequired": "none",
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
   "roles": {
     "realm": [
       {

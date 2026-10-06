@@ -25,5 +25,5 @@ USER spring:spring
 
 COPY --from=builder /app/backend/target/*.jar app.jar
 
-EXPOSE 8081
+EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]

@@ -10,8 +10,10 @@ export interface ProblemDetail {
   invalidParams?: Record<string, string>
 }
 
+const apiOrigin = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '')
+
 export const apiClient = axios.create({
-  baseURL: '/api',
+  baseURL: apiOrigin ? `${apiOrigin}/api` : '/api',
   headers: {
     'Content-Type': 'application/json'
   }

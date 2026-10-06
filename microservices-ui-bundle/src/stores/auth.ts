@@ -64,17 +64,31 @@ export const useAuthStore = defineStore('auth', () => {
 
   /**
    * Hybrid Login:
-   * 1. Attempts Keycloak OAuth 2.0 Direct Access Grants (Port 8180).
-   * 2. If Keycloak is unreachable or offline, falls back seamlessly to pre-seeded local accounts.
+   * 1. Resolves username or email interchangeably.
+   * 2. Attempts Keycloak OAuth 2.0 Direct Access Grants (Port 8180 or VITE_KEYCLOAK_URL).
+   * 3. If Keycloak is unreachable or offline, falls back seamlessly to pre-seeded local accounts.
    */
-  async function login(username: string, password: string): Promise<UserProfile> {
-    const keycloakTokenUrl = 'http://localhost:8180/realms/shopping-cart/protocol/openid-connect/token'
+  async function login(identifier: string, password: string): Promise<UserProfile> {
+    const rawIdentifier = (identifier || '').trim()
+    const normalizedInput = rawIdentifier.toLowerCase()
+    const allAccounts = { ...SEEDED_CREDENTIALS, ...localRegisteredUsers.value }
+
+    // Resolve account by username OR email (case-insensitive)
+    const matchedEntry = Object.entries(allAccounts).find(
+      ([uname, acc]) => uname.toLowerCase() === normalizedInput || (acc.email && acc.email.toLowerCase() === normalizedInput)
+    )
+
+    const resolvedUsername = matchedEntry ? matchedEntry[0] : rawIdentifier
+    const resolvedAccount = matchedEntry ? matchedEntry[1] : null
+
+    const keycloakBase = (import.meta.env.VITE_KEYCLOAK_URL || 'http://localhost:8180').replace(/\/+$/, '')
+    const keycloakTokenUrl = `${keycloakBase}/realms/shopping-cart/protocol/openid-connect/token`
 
     try {
       const params = new URLSearchParams()
       params.append('client_id', 'shopping-cart-spa')
       params.append('grant_type', 'password')
-      params.append('username', username)
+      params.append('username', resolvedUsername)
       params.append('password', password)
       params.append('scope', 'openid')
 
@@ -93,11 +107,12 @@ export const useAuthStore = defineStore('auth', () => {
         roles = ['USER']
       }
 
+      const userEmail = resolvedAccount?.email || `${resolvedUsername}@example.com`
       const profile: UserProfile = {
-        sub: username,
-        preferred_username: username,
+        sub: resolvedUsername,
+        preferred_username: resolvedUsername,
         roles,
-        email: `${username}@example.com`
+        email: userEmail
       }
 
       setSession(rawToken, profile, 'keycloak')
@@ -105,16 +120,13 @@ export const useAuthStore = defineStore('auth', () => {
       return profile
     } catch (err: any) {
       // Resilient fallback: If seeded demo account or locally registered account matches, allow seamless login
-      const allAccounts = { ...SEEDED_CREDENTIALS, ...localRegisteredUsers.value }
-      const match = allAccounts[username]
-
-      if (match && match.password === password) {
-        const mockJwt = `demo.token.${btoa(JSON.stringify({ sub: username, roles: match.roles, email: match.email }))}`
+      if (resolvedAccount && resolvedAccount.password === password) {
+        const mockJwt = `demo.token.${btoa(JSON.stringify({ sub: resolvedUsername, roles: resolvedAccount.roles, email: resolvedAccount.email }))}`
         const profile: UserProfile = {
-          sub: username,
-          preferred_username: username,
-          roles: match.roles,
-          email: match.email
+          sub: resolvedUsername,
+          preferred_username: resolvedUsername,
+          roles: resolvedAccount.roles,
+          email: resolvedAccount.email
         }
 
         setSession(mockJwt, profile, 'local')
@@ -124,23 +136,23 @@ export const useAuthStore = defineStore('auth', () => {
 
       // If Keycloak returned an HTTP 401/400 (bad credentials) and credentials don't match local accounts
       if (err.response && (err.response.status === 401 || err.response.status === 400)) {
-        throw new Error('Invalid username or password in Keycloak realm.')
+        throw new Error('Invalid username, email, or password in Keycloak realm.')
       }
 
-      if (!match) {
-        throw new Error(`Account "${username}" not found. (Use quick-select or register a new account)`)
+      if (!resolvedAccount) {
+        throw new Error(`Account "${rawIdentifier}" not found. (Use quick-select or register a new account)`)
       }
 
-      if (match.password !== password) {
+      if (resolvedAccount.password !== password) {
         throw new Error('Incorrect password provided.')
       }
 
-      const mockJwt = `demo.token.${btoa(JSON.stringify({ sub: username, roles: match.roles, email: match.email }))}`
+      const mockJwt = `demo.token.${btoa(JSON.stringify({ sub: resolvedUsername, roles: resolvedAccount.roles, email: resolvedAccount.email }))}`
       const profile: UserProfile = {
-        sub: username,
-        preferred_username: username,
-        roles: match.roles,
-        email: match.email
+        sub: resolvedUsername,
+        preferred_username: resolvedUsername,
+        roles: resolvedAccount.roles,
+        email: resolvedAccount.email
       }
 
       setSession(mockJwt, profile, 'local')
@@ -154,13 +166,25 @@ export const useAuthStore = defineStore('auth', () => {
       throw new Error('Username and password are required.')
     }
 
-    localRegisteredUsers.value[payload.username] = {
-      password: payload.password,
-      roles: ['USER'],
-      email: payload.email || `${payload.username}@example.com`
+    const cleanUsername = payload.username.trim()
+    const cleanEmail = (payload.email || `${cleanUsername}@example.com`).trim().toLowerCase()
+
+    const allAccounts = { ...SEEDED_CREDENTIALS, ...localRegisteredUsers.value }
+    const existing = Object.entries(allAccounts).find(
+      ([uname, acc]) => uname.toLowerCase() === cleanUsername.toLowerCase() || (acc.email && acc.email.toLowerCase() === cleanEmail)
+    )
+
+    if (existing) {
+      throw new Error('An account with this username or email already exists.')
     }
 
-    return login(payload.username, payload.password)
+    localRegisteredUsers.value[cleanUsername] = {
+      password: payload.password,
+      roles: ['USER'],
+      email: cleanEmail
+    }
+
+    return login(cleanUsername, payload.password)
   }
 
   function loginAsUser(username = 'user1') {

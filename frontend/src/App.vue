@@ -1,7 +1,8 @@
 <template>
   <div class="app-layout">
-    <!-- Ambient Procedural Paper Grain Overlay -->
+    <!-- Ambient Procedural Paper Grain & Hardware Circuit PCB Traces Overlay -->
     <div class="paper-grain" aria-hidden="true"></div>
+    <HardwareCircuitBackground />
 
     <Navbar />
 
@@ -72,6 +73,7 @@ import CommandPalette from './components/CommandPalette.vue'
 import StickyBasketBar from './components/StickyBasketBar.vue'
 import ToastContainer from './components/ToastContainer.vue'
 import SvgIcon from './components/SvgIcon.vue'
+import HardwareCircuitBackground from './components/HardwareCircuitBackground.vue'
 </script>
 
 <style scoped>
@@ -79,10 +81,13 @@ import SvgIcon from './components/SvgIcon.vue'
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  position: relative;
 }
 
 .main-content {
   flex: 1;
+  position: relative;
+  z-index: 1;
 }
 
 .global-footer {
