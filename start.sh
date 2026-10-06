@@ -26,22 +26,33 @@ echo -e "${BLUE}================================================================
 # ── 1. Ensure MongoDB Replica Set on Port 27018 ────────────────────────────────
 echo -e "\n${YELLOW}[1/4] Checking MongoDB replica set on port 27018...${NC}"
 
-if docker ps --format '{{.Names}}' | grep -q "mongo-test-rs"; then
+if docker ps --format '{{.Names}}' | grep -q "^shopping-cart-mongo$"; then
+    MONGO_CONTAINER="shopping-cart-mongo"
+    echo -e "${GREEN}✓ Container 'shopping-cart-mongo' is already running.${NC}"
+elif docker ps --format '{{.Names}}' | grep -q "^mongo-test-rs$"; then
+    MONGO_CONTAINER="mongo-test-rs"
     echo -e "${GREEN}✓ Container 'mongo-test-rs' is already running.${NC}"
-elif docker ps -a --format '{{.Names}}' | grep -q "mongo-test-rs"; then
+elif docker ps -a --format '{{.Names}}' | grep -q "^shopping-cart-mongo$"; then
+    echo -e "Starting existing container 'shopping-cart-mongo'..."
+    docker start shopping-cart-mongo >/dev/null
+    MONGO_CONTAINER="shopping-cart-mongo"
+    echo -e "${GREEN}✓ Container 'shopping-cart-mongo' started.${NC}"
+elif docker ps -a --format '{{.Names}}' | grep -q "^mongo-test-rs$"; then
     echo -e "Starting existing container 'mongo-test-rs'..."
     docker start mongo-test-rs >/dev/null
+    MONGO_CONTAINER="mongo-test-rs"
     echo -e "${GREEN}✓ Container 'mongo-test-rs' started.${NC}"
 else
     echo -e "Launching MongoDB container via docker-compose..."
     docker compose -f infra/docker-compose.yml up -d mongodb
+    MONGO_CONTAINER="shopping-cart-mongo"
     echo -e "${GREEN}✓ MongoDB container launched.${NC}"
 fi
 
 # Wait for Mongo RS readiness
-echo -n "Waiting for replica set rs0 readiness..."
-RETRIES=15
-until docker exec mongo-test-rs mongosh --port 27018 --quiet --eval "rs.status().ok" 2>/dev/null | grep -q "1" || [ $RETRIES -eq 0 ]; do
+echo -n "Waiting for replica set rs0 readiness in container '$MONGO_CONTAINER'..."
+RETRIES=20
+until docker exec "$MONGO_CONTAINER" mongosh --port 27018 --quiet --eval "rs.status().ok" 2>/dev/null | grep -q "1" || [ $RETRIES -eq 0 ]; do
     echo -n "."
     sleep 1
     RETRIES=$((RETRIES-1))
