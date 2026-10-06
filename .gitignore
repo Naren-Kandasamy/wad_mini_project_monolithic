@@ -133,3 +133,8 @@ Thumbs.db
 *.log
 logs/
 backend/logs/
+
+# ------------------------------------------
+# External Skills & Tools
+# ------------------------------------------
+Docs/skills-main/
