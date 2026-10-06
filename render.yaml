@@ -1,5 +1,5 @@
 # ==============================================================================
-# Render Blueprint Specification — Shopping Cart Monolith Backend API
+# Render Blueprint Specification — Shopping Cart Monolith Backend API & Keycloak
 # ==============================================================================
 services:
   - type: web
@@ -17,6 +17,25 @@ services:
       - key: MONGODB_URI
         sync: false # Connect to MongoDB Atlas replica set URI
       - key: KEYCLOAK_ISSUER_URI
-        sync: false # Optional: Hosted Keycloak realm URL (e.g. https://auth.domain.com/realms/shopping-cart)
+        sync: false # Set to https://<your-keycloak-app>.onrender.com/realms/shopping-cart
       - key: CORS_ALLOWED_ORIGINS
         value: "http://localhost:5173,https://*.vercel.app"
+
+  - type: web
+    name: shopping-cart-keycloak
+    runtime: docker
+    dockerfilePath: ./Dockerfile.keycloak
+    plan: free
+    region: oregon
+    healthCheckPath: /health/ready
+    envVars:
+      - key: KC_BOOTSTRAP_ADMIN_USERNAME
+        value: "admin"
+      - key: KC_BOOTSTRAP_ADMIN_PASSWORD
+        value: "admin"
+      - key: KC_HOSTNAME_STRICT
+        value: "false"
+      - key: KC_HTTP_ENABLED
+        value: "true"
+      - key: KC_PROXY_HEADERS
+        value: "xforwarded"

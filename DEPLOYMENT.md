@@ -61,7 +61,39 @@ The frontend is a Vue 3 Single Page Application (SPA). `vercel.json` is pre-conf
 
 ---
 
-## 3. Verifying the Full Stack Live
+## 3. Deploying Keycloak to Render (Remote Auth Server)
+
+We have created [`Dockerfile.keycloak`](file:///home/nkandasamy/Desktop/wad_mini_project_monolithic/Dockerfile.keycloak) which automatically packages the pre-seeded realm, clients, and demo accounts (`user1`, `admin1`, `dev1`).
+
+### Option A: Using the Render Blueprint
+If your teammate deploys using `render.yaml`, Render automatically detects and sets up `shopping-cart-keycloak` alongside the backend service!
+
+### Option B: Manual Web Service Setup
+1. In Render Dashboard, click **New +** -> **Web Service**.
+2. Connect your GitHub repository (`wad_mini_project_monolithic`).
+3. Set the service properties:
+   - **Name**: `shopping-cart-keycloak`
+   - **Runtime**: Docker
+   - **Dockerfile Path**: `./Dockerfile.keycloak`
+   - **Health Check Path**: `/health/ready`
+4. Under **Environment Variables**, add:
+   | Key | Value | Description |
+   | :--- | :--- | :--- |
+   | `KC_BOOTSTRAP_ADMIN_USERNAME` | `admin` | Keycloak admin username |
+   | `KC_BOOTSTRAP_ADMIN_PASSWORD` | `admin` | Keycloak admin password |
+   | `KC_HOSTNAME_STRICT` | `false` | Allows Render domain without SSL hostname errors |
+   | `KC_HTTP_ENABLED` | `true` | Allows Render reverse-proxy HTTP traffic |
+   | `KC_PROXY_HEADERS` | `xforwarded` | Reads HTTPS headers from Render edge |
+
+5. Click **Create Web Service**. Once deployed, your Keycloak URL will be:
+   `https://<your-keycloak-app>.onrender.com`
+6. Connect it to your other services:
+   - **On Vercel (Frontend)**: Set `VITE_KEYCLOAK_URL` to `https://<your-keycloak-app>.onrender.com`
+   - **On Render (Backend)**: Set `KEYCLOAK_ISSUER_URI` to `https://<your-keycloak-app>.onrender.com/realms/shopping-cart`
+
+---
+
+## 4. Verifying the Full Stack Live
 
 1. Open your Vercel URL in your browser.
 2. Observe the animated PCB circuit board canvas in the background with electrical bus pulses.

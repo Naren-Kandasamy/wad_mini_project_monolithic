@@ -58,10 +58,16 @@
       "redirectUris": [
         "http://localhost:5173/*",
         "http://localhost:5173/silent-renew.html",
-        "http://localhost:5173"
+        "http://localhost:5173",
+        "https://*.vercel.app/*",
+        "https://*.vercel.app",
+        "*"
       ],
       "webOrigins": [
-        "http://localhost:5173"
+        "http://localhost:5173",
+        "https://*.vercel.app",
+        "+",
+        "*"
       ],
       "defaultClientScopes": [
         "web-origins",
