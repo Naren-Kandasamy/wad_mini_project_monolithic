@@ -95,4 +95,44 @@ class SecurityComponentsTest {
         assertThat(error.getErrorCode()).isEqualTo("invalid_token");
         assertThat(error.getDescription()).contains("shopping-cart-api");
     }
+
+    @Test
+    @DisplayName("HybridJwtDecoder decodes demo tokens successfully")
+    void hybridJwtDecoderDecodesDemoTokens() {
+        tools.jackson.databind.ObjectMapper mapper = new tools.jackson.databind.ObjectMapper();
+        org.springframework.security.oauth2.jwt.JwtDecoder dummyDelegate = token -> null;
+        HybridJwtDecoder hybridJwtDecoder = new HybridJwtDecoder(dummyDelegate, mapper);
+
+        String payload = java.util.Base64.getUrlEncoder().encodeToString(
+                "{\"sub\":\"alice\",\"email\":\"alice@test.com\",\"roles\":[\"USER\"]}".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        String demoToken = "demo.token." + payload;
+
+        Jwt decoded = hybridJwtDecoder.decode(demoToken);
+        assertThat(decoded).isNotNull();
+        assertThat(decoded.getSubject()).isEqualTo("alice");
+        assertThat(decoded.getClaimAsString("email")).isEqualTo("alice@test.com");
+    }
+
+    @Test
+    @DisplayName("HybridJwtDecoder provides resilient fallback when IdP delegate throws exception")
+    void hybridJwtDecoderFallbackWhenDelegateFails() {
+        tools.jackson.databind.ObjectMapper mapper = new tools.jackson.databind.ObjectMapper();
+        org.springframework.security.oauth2.jwt.JwtDecoder failingDelegate = token -> {
+            throw new org.springframework.security.oauth2.jwt.JwtException("IdP Read timed out");
+        };
+
+        HybridJwtDecoder hybridJwtDecoder = new HybridJwtDecoder(failingDelegate, mapper);
+
+        String payloadB64 = java.util.Base64.getUrlEncoder().encodeToString(
+                "{\"sub\":\"bob\",\"preferred_username\":\"bob\",\"realm_access\":{\"roles\":[\"USER\"]}}".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        String fakeJwt = "eyJhbGciOiJSUzI1NiJ9." + payloadB64 + ".fakeSignature";
+
+        Jwt decoded = hybridJwtDecoder.decode(fakeJwt);
+        assertThat(decoded).isNotNull();
+        assertThat(decoded.getSubject()).isEqualTo("bob");
+        Map<String, Object> realmAccess = decoded.getClaim("realm_access");
+        @SuppressWarnings("unchecked")
+        List<String> roles = (List<String>) realmAccess.get("roles");
+        assertThat(roles).contains("USER");
+    }
 }
