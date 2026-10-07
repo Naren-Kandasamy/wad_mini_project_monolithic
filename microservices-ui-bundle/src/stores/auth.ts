@@ -21,6 +21,7 @@ export interface RegisterPayload {
 const SEEDED_CREDENTIALS: Record<string, { password: string; roles: string[]; email: string }> = {
   user1: { password: 'password123', roles: ['USER'], email: 'user1@example.com' },
   admin1: { password: 'admin123', roles: ['ADMIN', 'USER'], email: 'admin1@example.com' },
+  manager1: { password: 'manager123', roles: ['MANAGER', 'USER'], email: 'manager1@example.com' },
   dev1: { password: 'dev123', roles: ['DEVELOPER', 'USER'], email: 'dev1@example.com' }
 }
 
@@ -41,6 +42,8 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAuthenticated = computed(() => !!accessToken.value)
   const isAdmin = computed(() => user.value?.roles.includes('ADMIN') || user.value?.roles.includes('ROLE_ADMIN') || false)
+  const isManager = computed(() => user.value?.roles.includes('MANAGER') || user.value?.roles.includes('ROLE_MANAGER') || false)
+  const canManageProducts = computed(() => isAdmin.value || isManager.value)
   const isDeveloper = computed(() => user.value?.roles.includes('DEVELOPER') || user.value?.roles.includes('ROLE_DEVELOPER') || false)
   const currentUserId = computed(() => user.value?.sub || '')
   const token = computed(() => accessToken.value)
@@ -239,6 +242,14 @@ export const useAuthStore = defineStore('auth', () => {
     }, 'local')
   }
 
+  function loginAsManager(username = 'manager1') {
+    setSession('mock-manager-token', {
+      sub: username,
+      preferred_username: username,
+      roles: ['MANAGER', 'USER']
+    }, 'local')
+  }
+
   function logout() {
     accessToken.value = null
     user.value = null
@@ -249,6 +260,8 @@ export const useAuthStore = defineStore('auth', () => {
     user,
     isAuthenticated,
     isAdmin,
+    isManager,
+    canManageProducts,
     isDeveloper,
     currentUserId,
     token,
@@ -262,6 +275,7 @@ export const useAuthStore = defineStore('auth', () => {
     register,
     loginAsUser,
     loginAsAdmin,
+    loginAsManager,
     loginAsDeveloper,
     logout
   }

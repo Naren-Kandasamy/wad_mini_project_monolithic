@@ -20,9 +20,9 @@
             <SvgIcon name="package" size="16" />
             <span>Orders</span>
           </router-link>
-          <router-link v-if="authStore.isAdmin" to="/admin" class="nav-item admin-nav-item">
+          <router-link v-if="authStore.canManageProducts" to="/admin" class="nav-item admin-nav-item">
             <SvgIcon name="shield" size="16" />
-            <span>Admin</span>
+            <span>{{ authStore.isAdmin ? 'Admin' : 'Manager' }}</span>
           </router-link>
         </nav>
       </div>
@@ -48,6 +48,7 @@
               <SvgIcon name="user" size="14" color="var(--text-secondary)" />
               <span class="user-id">{{ authStore.currentUserId }}</span>
               <span v-if="authStore.isAdmin" class="role-tag admin-tag">ADMIN</span>
+              <span v-else-if="authStore.isManager" class="role-tag manager-tag">MANAGER</span>
               <span v-else-if="authStore.isDeveloper" class="role-tag dev-tag">DEV</span>
               <span v-else class="role-tag user-tag">MEMBER</span>
             </div>
@@ -254,6 +255,11 @@ function openCommandPalette() {
 .admin-tag {
   background: var(--surface-dark);
   color: var(--text-inverse);
+}
+
+.manager-tag {
+  background: var(--accent-terracotta);
+  color: #FFFFFF;
 }
 
 .dev-tag {

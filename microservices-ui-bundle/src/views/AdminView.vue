@@ -5,32 +5,32 @@
         <h1 class="admin-title font-display">System Administration</h1>
         <p class="admin-subtitle">Real-time modular monolith diagnostics and catalog inventory management.</p>
       </div>
-      <div v-if="authStore.isAdmin" class="admin-pill embossed-badge">
+      <div v-if="authStore.canManageProducts" class="admin-pill embossed-badge">
         <SvgIcon name="shield" size="14" color="var(--accent-clay)" />
-        <span>ROLE_ADMIN VERIFIED</span>
+        <span>{{ authStore.isAdmin ? 'ROLE_ADMIN' : 'ROLE_MANAGER' }} VERIFIED</span>
       </div>
     </div>
 
     <!-- Access Denied State -->
-    <div v-if="!authStore.isAdmin" class="denied-card ceramic-card">
+    <div v-if="!authStore.canManageProducts" class="denied-card ceramic-card">
       <div class="wax-seal denied-seal">
         <SvgIcon name="shield" size="32" color="var(--accent-terracotta)" />
       </div>
-      <h2 class="denied-title font-display">Admin Authentication Required</h2>
+      <h2 class="denied-title font-display">Management Authentication Required</h2>
       <p class="denied-desc">
-        This portal requires the <code>ROLE_ADMIN</code> authority as enforced by the Spring Security monolithic authorization filters.
+        This portal requires the <code>ROLE_ADMIN</code> or <code>ROLE_MANAGER</code> authority as enforced by the Spring Security monolithic authorization filters.
       </p>
       <button
         type="button"
         class="btn-clay-terracotta mt-4"
         @click="authStore.openAuthModal()"
       >
-        <span>Sign In with Admin Account</span>
+        <span>Sign In with Admin or Manager Account</span>
         <SvgIcon name="arrow-right" size="18" />
       </button>
     </div>
 
-    <!-- Admin Dashboard -->
+    <!-- Admin & Manager Dashboard -->
     <div v-else class="admin-grid">
       <!-- Diagnostics & Metrics Section -->
       <section class="ceramic-card metrics-card">
@@ -148,6 +148,72 @@
           </div>
         </form>
       </section>
+
+      <!-- Inventory Management Table Section (Admin & Manager) -->
+      <section class="ceramic-card inventory-table-card">
+        <div class="card-head">
+          <div>
+            <h3 class="card-head-title font-display">Catalog Inventory &amp; Lifecycle</h3>
+            <p class="card-head-sub">Active products in the monolithic catalog database</p>
+          </div>
+          <button
+            type="button"
+            class="refresh-inv-btn btn-secondary"
+            :disabled="productsLoading"
+            @click="loadInventory"
+          >
+            <SvgIcon name="refresh" size="14" :class="{ 'spin-icon': productsLoading }" />
+            <span>{{ productsLoading ? 'Refreshing...' : 'Refresh' }}</span>
+          </button>
+        </div>
+
+        <div v-if="productsLoading && products.length === 0" class="inventory-loading">
+          <div class="skeleton-shimmer h-12 w-full mb-2" v-for="n in 3" :key="n"></div>
+        </div>
+
+        <div v-else-if="products.length === 0" class="empty-inventory">
+          <p>No active products in catalog database.</p>
+        </div>
+
+        <div v-else class="inventory-table-wrap">
+          <table class="inventory-table">
+            <thead>
+              <tr>
+                <th>Product</th>
+                <th>SKU</th>
+                <th>Price</th>
+                <th>Status</th>
+                <th class="text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in products" :key="item.id">
+                <td class="inv-prod-cell">
+                  <div class="inv-prod-title">{{ item.name }}</div>
+                  <div class="inv-prod-desc">{{ item.description }}</div>
+                </td>
+                <td class="font-mono text-muted text-sm">{{ item.sku }}</td>
+                <td class="font-bold">${{ Number(item.price).toFixed(2) }}</td>
+                <td>
+                  <span class="stock-badge-sm">Active</span>
+                </td>
+                <td class="text-right">
+                  <button
+                    type="button"
+                    class="btn-retire-product"
+                    title="Remove product from catalog"
+                    :disabled="deletingId === item.id"
+                    @click="deleteProduct(item)"
+                  >
+                    <SvgIcon name="trash" size="13" />
+                    <span>{{ deletingId === item.id ? 'Removing...' : 'Remove' }}</span>
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
   </div>
 </template>
@@ -177,6 +243,40 @@ const submitting = ref(false)
 const formSuccess = ref<string | null>(null)
 const formError = ref<string | null>(null)
 
+// Catalog Inventory Management
+const products = ref<any[]>([])
+const productsLoading = ref(false)
+const deletingId = ref<string | null>(null)
+
+async function loadInventory() {
+  productsLoading.value = true
+  try {
+    const res = await apiClient.get('/products')
+    products.value = res.data || []
+  } catch (err: any) {
+    products.value = []
+  } finally {
+    productsLoading.value = false
+  }
+}
+
+async function deleteProduct(item: any) {
+  if (!confirm(`Are you sure you want to remove "${item.name}" (SKU: ${item.sku}) from the active catalog?`)) {
+    return
+  }
+  deletingId.value = item.id
+  try {
+    await apiClient.delete(`/products/${item.id}`)
+    products.value = products.value.filter((p) => p.id !== item.id)
+    toastStore.show(`Removed "${item.name}" from catalog`, 'success')
+  } catch (err: any) {
+    const errorMsg = err.response?.data?.detail || 'Failed to remove product from catalog'
+    toastStore.show(errorMsg, 'error')
+  } finally {
+    deletingId.value = null
+  }
+}
+
 async function loadStats() {
   statsLoading.value = true
   try {
@@ -198,6 +298,7 @@ async function createProduct() {
     formSuccess.value = `Published "${form.value.name}" with SKU "${form.value.sku}" successfully!`
     toastStore.show(`Published product "${form.value.name}"`, 'success')
     form.value = { name: '', description: '', price: 0, sku: '', active: true }
+    await loadInventory()
   } catch (err: any) {
     formError.value = err.response?.data?.detail || 'Failed to create product'
     toastStore.show('Failed to create product', 'error')
@@ -207,19 +308,22 @@ async function createProduct() {
 }
 
 watch(
-  () => authStore.isAdmin,
-  (isAdmin) => {
-    if (isAdmin) {
+  () => authStore.canManageProducts,
+  (canManage) => {
+    if (canManage) {
       loadStats()
+      loadInventory()
     } else {
       stats.value = null
+      products.value = []
     }
   }
 )
 
 onMounted(() => {
-  if (authStore.isAdmin) {
+  if (authStore.canManageProducts) {
     loadStats()
+    loadInventory()
   }
 })
 </script>
@@ -453,5 +557,112 @@ onMounted(() => {
   .form-row-2 {
     grid-template-columns: 1fr;
   }
+}
+
+/* Inventory Table Styles */
+.inventory-table-card {
+  padding: 2.25rem;
+  grid-column: 1 / -1;
+}
+
+.card-head-sub {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 0.2rem;
+}
+
+.refresh-inv-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.85rem;
+  font-size: 0.825rem;
+}
+
+.inventory-table-wrap {
+  overflow-x: auto;
+  margin-top: 1rem;
+}
+
+.inventory-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.inventory-table th {
+  padding: 0.75rem 1rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  border-bottom: 2px solid var(--border-subtle);
+}
+
+.inventory-table td {
+  padding: 1rem;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 0.875rem;
+  vertical-align: middle;
+}
+
+.inv-prod-cell {
+  max-width: 260px;
+}
+
+.inv-prod-title {
+  font-weight: 600;
+  color: var(--surface-dark);
+}
+
+.inv-prod-desc {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stock-badge-sm {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: 9999px;
+  font-size: 0.725rem;
+  font-weight: 600;
+  background: rgba(34, 197, 94, 0.12);
+  color: #166534;
+}
+
+.btn-retire-product {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(220, 38, 38, 0.25);
+  background: rgba(220, 38, 38, 0.05);
+  color: #DC2626;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-retire-product:hover {
+  background: #DC2626;
+  color: #FFFFFF;
+}
+
+.btn-retire-product:hover :deep(.svg-icon) {
+  stroke: #FFFFFF;
+}
+
+.empty-inventory {
+  padding: 2rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.9rem;
 }
 </style>

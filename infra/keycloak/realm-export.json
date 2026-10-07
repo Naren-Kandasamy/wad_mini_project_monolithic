@@ -16,6 +16,10 @@
         "description": "Store administrator"
       },
       {
+        "name": "MANAGER",
+        "description": "Store and catalog inventory manager"
+      },
+      {
         "name": "DEVELOPER",
         "description": "Developer and diagnostic access"
       }
@@ -136,6 +140,24 @@
       ],
       "realmRoles": [
         "DEVELOPER"
+      ]
+    },
+    {
+      "username": "manager1",
+      "enabled": true,
+      "email": "manager1@example.com",
+      "firstName": "Store",
+      "lastName": "Manager",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "manager123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "MANAGER",
+        "USER"
       ]
     }
   ]

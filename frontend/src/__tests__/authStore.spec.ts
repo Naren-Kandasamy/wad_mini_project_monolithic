@@ -104,4 +104,24 @@ describe('Auth Store Security Specifications', () => {
       password: 'anypassword'
     })).rejects.toThrow('already exists')
   })
+
+  it('correctly grants ROLE_MANAGER privileges and enables canManageProducts', () => {
+    const auth = useAuthStore()
+    auth.loginAsManager('manager-lead')
+
+    expect(auth.isAuthenticated).toBe(true)
+    expect(auth.isManager).toBe(true)
+    expect(auth.canManageProducts).toBe(true)
+    expect(auth.currentUserId).toBe('manager-lead')
+  })
+
+  it('authenticates successfully as manager1 persona', async () => {
+    const auth = useAuthStore()
+    const profile = await auth.login('manager1@example.com', 'manager123')
+
+    expect(auth.isAuthenticated).toBe(true)
+    expect(auth.isManager).toBe(true)
+    expect(auth.canManageProducts).toBe(true)
+    expect(profile.sub).toBe('manager1')
+  })
 })

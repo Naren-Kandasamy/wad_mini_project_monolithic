@@ -19,7 +19,10 @@ import java.time.Instant;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -82,5 +85,24 @@ class ProductControllerTest {
                 .content(json))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.id").value("p-new"));
+    }
+
+    @Test
+    @DisplayName("DELETE /api/products/{id} deletes product and returns 204")
+    void deleteProduct_returnsNoContent() throws Exception {
+        mockMvc.perform(delete("/api/products/p1"))
+            .andExpect(status().isNoContent());
+
+        verify(productService).deleteProduct("p1");
+    }
+
+    @Test
+    @DisplayName("DELETE /api/products/{id} returns 404 when product missing")
+    void deleteProduct_returnsNotFoundWhenMissing() throws Exception {
+        doThrow(new ProductNotFoundException("missing")).when(productService).deleteProduct("missing");
+
+        mockMvc.perform(delete("/api/products/missing"))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.status").value(404));
     }
 }

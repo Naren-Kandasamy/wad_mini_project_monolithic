@@ -195,6 +195,16 @@
 
               <button
                 type="button"
+                class="persona-chip chip-manager"
+                @click="quickSelect('manager1@example.com', 'manager123')"
+                title="Sign in with email: manager1@example.com"
+              >
+                <span class="persona-role">Manager</span>
+                <span class="persona-user">manager1@example.com</span>
+              </button>
+
+              <button
+                type="button"
                 class="persona-chip chip-dev"
                 @click="quickSelect('dev1@example.com', 'dev123')"
                 title="Sign in with email: dev1@example.com"
@@ -522,6 +532,10 @@ function quickSelect(user: string, pass: string) {
 
 .chip-admin .persona-role {
   color: var(--accent-clay);
+}
+
+.chip-manager .persona-role {
+  color: var(--accent-terracotta);
 }
 
 .chip-dev .persona-role {

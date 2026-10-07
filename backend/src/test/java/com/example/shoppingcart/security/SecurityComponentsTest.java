@@ -23,7 +23,7 @@ class SecurityComponentsTest {
         Jwt jwt = Jwt.withTokenValue("mock-token")
                 .header("alg", "none")
                 .subject("user-123")
-                .claim("realm_access", Map.of("roles", List.of("USER", "ADMIN")))
+                .claim("realm_access", Map.of("roles", List.of("USER", "ADMIN", "MANAGER")))
                 .issuedAt(Instant.now())
                 .expiresAt(Instant.now().plusSeconds(3600))
                 .build();
@@ -38,7 +38,7 @@ class SecurityComponentsTest {
                 .map(GrantedAuthority::getAuthority)
                 .toList();
 
-        assertThat(authorities).containsExactlyInAnyOrder("ROLE_USER", "ROLE_ADMIN");
+        assertThat(authorities).containsExactlyInAnyOrder("ROLE_USER", "ROLE_ADMIN", "ROLE_MANAGER");
     }
 
     @Test

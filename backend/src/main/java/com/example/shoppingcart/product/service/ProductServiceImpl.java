@@ -71,8 +71,7 @@ public class ProductServiceImpl implements ProductService {
             .toList();
     }
 
-    @Override
-    public ProductResponse getProductById(String id) {
+    private ProductDocument findDocumentByIdOrSku(String id) {
         Optional<ProductDocument> docOpt = productRepository.findById(id);
 
         if (docOpt.isEmpty()) {
@@ -83,7 +82,16 @@ public class ProductServiceImpl implements ProductService {
             docOpt = productRepository.findBySku(FALLBACK_SKU_MAP.get(id));
         }
 
-        ProductDocument doc = docOpt.orElseThrow(() -> new ProductNotFoundException(id));
+        if (docOpt.isEmpty()) {
+            docOpt = productRepository.findByName(id);
+        }
+
+        return docOpt.orElseThrow(() -> new ProductNotFoundException(id));
+    }
+
+    @Override
+    public ProductResponse getProductById(String id) {
+        ProductDocument doc = findDocumentByIdOrSku(id);
         return ProductResponse.fromDocument(doc);
     }
 
@@ -106,8 +114,7 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public ProductResponse updateProduct(String id, UpdateProductRequest request) {
-        ProductDocument doc = productRepository.findById(id)
-            .orElseThrow(() -> new ProductNotFoundException(id));
+        ProductDocument doc = findDocumentByIdOrSku(id);
 
         if (request.name() != null) {
             doc.setName(request.name());
@@ -129,8 +136,7 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public void deleteProduct(String id) {
-        ProductDocument doc = productRepository.findById(id)
-            .orElseThrow(() -> new ProductNotFoundException(id));
+        ProductDocument doc = findDocumentByIdOrSku(id);
         doc.setActive(false);
         doc.setUpdatedAt(Instant.now());
         productRepository.save(doc);

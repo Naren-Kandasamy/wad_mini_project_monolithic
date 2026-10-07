@@ -48,12 +48,12 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/auth/register").permitAll()
                         // Public product catalog browsing
                         .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
-                        // Admin-only product catalog modifications
-                        .requestMatchers(HttpMethod.POST, "/api/products/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.PUT, "/api/products/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.DELETE, "/api/products/**").hasRole("ADMIN")
-                        // Admin-only management endpoints
-                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        // Admin and Manager product catalog modifications
+                        .requestMatchers(HttpMethod.POST, "/api/products/**").hasAnyRole("ADMIN", "MANAGER")
+                        .requestMatchers(HttpMethod.PUT, "/api/products/**").hasAnyRole("ADMIN", "MANAGER")
+                        .requestMatchers(HttpMethod.DELETE, "/api/products/**").hasAnyRole("ADMIN", "MANAGER")
+                        // Admin and Manager management endpoints
+                        .requestMatchers("/api/admin/**").hasAnyRole("ADMIN", "MANAGER")
                         // Diagnostic developer endpoints
                         .requestMatchers("/api/dev/**").hasRole("DEVELOPER")
                         // User-owned cart management

@@ -231,6 +231,18 @@
               <span class="stock-dot"></span> In Stock
             </span>
 
+            <!-- Manager / Admin Remove Product Action -->
+            <button
+              v-if="authStore.canManageProducts"
+              type="button"
+              class="product-remove-badge"
+              title="Remove product from catalog (Manager/Admin)"
+              @click.stop="productPendingRemoval = product"
+            >
+              <SvgIcon name="trash" size="12" />
+              <span>Remove</span>
+            </button>
+
             <!-- Quick Specs Blueprint Trigger Button -->
             <button
               type="button"
@@ -326,6 +338,53 @@
       :finish="selectedFinishes[activeSpecsProduct?.id || ''] || 'terracotta'"
       @addToCart="addToCart"
     />
+
+    <!-- Product Removal Confirmation Modal (Admin & Manager) -->
+    <Teleport to="body">
+      <Transition name="fade">
+        <div
+          v-if="productPendingRemoval"
+          class="remove-confirm-backdrop"
+          @click.self="productPendingRemoval = null"
+        >
+          <div class="remove-confirm-dialog ceramic-card" role="dialog" aria-modal="true">
+            <div class="confirm-head">
+              <div class="confirm-icon-wrap">
+                <SvgIcon name="trash" size="22" color="var(--accent-terracotta)" />
+              </div>
+              <div>
+                <h3 class="confirm-title font-display">Remove from Catalog</h3>
+                <span class="confirm-sub">Inventory Lifecycle Action</span>
+              </div>
+            </div>
+
+            <p class="confirm-body">
+              Are you sure you want to remove <strong>{{ productPendingRemoval.name }}</strong> (SKU: <code>{{ productPendingRemoval.sku }}</code>) from the active catalog? Customers will no longer be able to discover or order this item.
+            </p>
+
+            <div class="confirm-actions">
+              <button
+                type="button"
+                class="btn-secondary"
+                :disabled="isRemovingProduct"
+                @click="productPendingRemoval = null"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                class="btn-clay-terracotta btn-danger-confirm"
+                :disabled="isRemovingProduct"
+                @click="removeProduct(productPendingRemoval)"
+              >
+                <SvgIcon name="trash" size="14" />
+                <span>{{ isRemovingProduct ? 'Removing...' : 'Confirm Removal' }}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
@@ -515,10 +574,28 @@ function openSpecsDrawer(product: Product) {
 const searchQuery = ref('')
 const selectedCategory = ref('All')
 const categories = ['All', 'Keyboards', 'Mice', 'Displays', 'Audio', 'Peripherals']
-
 const cartStore = useCartStore()
 const authStore = useAuthStore()
 const toastStore = useToastStore()
+
+// Catalog Inventory Management (Admin & Manager)
+const productPendingRemoval = ref<Product | null>(null)
+const isRemovingProduct = ref(false)
+
+async function removeProduct(product: Product) {
+  isRemovingProduct.value = true
+  try {
+    await apiClient.delete(`/products/${product.id}`)
+    products.value = products.value.filter((p) => p.id !== product.id)
+    toastStore.show(`Removed "${product.name}" from catalog`, 'success')
+    productPendingRemoval.value = null
+  } catch (err: any) {
+    const errorMsg = err.response?.data?.detail || 'Failed to remove product from catalog'
+    toastStore.show(errorMsg, 'error')
+  } finally {
+    isRemovingProduct.value = false
+  }
+}
 
 const filteredProducts = computed(() => {
   return products.value.filter((p) => {
@@ -1059,6 +1136,39 @@ onMounted(() => {
   transform: translateZ(16px);
 }
 
+.product-remove-badge {
+  position: absolute;
+  top: 0.85rem;
+  right: 0.85rem;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(189, 99, 70, 0.28);
+  border-radius: 9999px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.725rem;
+  font-weight: 600;
+  color: var(--accent-terracotta);
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  z-index: 4;
+  transform: translateZ(16px);
+}
+
+.product-remove-badge:hover {
+  background: var(--accent-terracotta);
+  color: #FFFFFF;
+  border-color: transparent;
+  transform: translateY(-1px) translateZ(20px);
+}
+
+.product-remove-badge:hover :deep(.svg-icon) {
+  stroke: #FFFFFF;
+}
+
 .stock-dot {
   width: 6px;
   height: 6px;
@@ -1286,5 +1396,89 @@ onMounted(() => {
     gap: 1.25rem;
     padding: 1.25rem;
   }
+}
+
+/* Product Removal Confirmation Modal (Admin & Manager) */
+.remove-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(25, 49, 38, 0.45);
+  backdrop-filter: blur(8px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.remove-confirm-dialog {
+  max-width: 480px;
+  width: 100%;
+  padding: 2.25rem;
+  box-shadow: 0 24px 48px -12px rgba(25, 49, 38, 0.25);
+}
+
+.confirm-head {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.confirm-icon-wrap {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(189, 99, 70, 0.1);
+  border: 1px solid rgba(189, 99, 70, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.confirm-title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--surface-dark);
+}
+
+.confirm-sub {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.confirm-body {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  margin-bottom: 2rem;
+}
+
+.confirm-body code {
+  font-family: monospace;
+  background: var(--surface-subtle);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+}
+
+.btn-danger-confirm {
+  background: #DC2626 !important;
+  color: #FFFFFF !important;
+  border: none !important;
+}
+
+.btn-danger-confirm:hover {
+  background: #B91C1C !important;
 }
 </style>
